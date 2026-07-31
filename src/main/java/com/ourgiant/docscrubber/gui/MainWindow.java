@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,6 +53,8 @@ public final class MainWindow extends JFrame {
     private volatile RuleSet currentRuleSet;
     private volatile Path currentRulesPath;
     private volatile Path selectedFile;
+
+    private RulesWindow rulesWindow;
 
     public MainWindow() {
         setTitle("DocScrubber");
@@ -105,12 +109,16 @@ public final class MainWindow extends JFrame {
         fileMenu.add(exit);
 
         JMenu rulesMenu = new JMenu("Rules");
+        JMenuItem viewRules = new JMenuItem("View Rules...");
+        viewRules.addActionListener(e -> showRulesWindow());
         JMenuItem loadRulesFile = new JMenuItem("Load Rules File...");
         loadRulesFile.addActionListener(e -> chooseRulesFile());
         JMenuItem reloadRules = new JMenuItem("Reload Rules");
         reloadRules.addActionListener(e -> loadRules(currentRulesPath));
         JMenuItem useDefaultRules = new JMenuItem("Use Bundled Default Rules");
         useDefaultRules.addActionListener(e -> loadRules(null));
+        rulesMenu.add(viewRules);
+        rulesMenu.addSeparator();
         rulesMenu.add(loadRulesFile);
         rulesMenu.add(reloadRules);
         rulesMenu.add(useDefaultRules);
@@ -140,6 +148,21 @@ public final class MainWindow extends JFrame {
         return menuBar;
     }
 
+    private void showRulesWindow() {
+        if (rulesWindow == null) {
+            rulesWindow = new RulesWindow(this);
+            rulesWindow.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent e) {
+                    rulesWindow = null;
+                }
+            });
+        }
+        rulesWindow.refresh(currentRuleSet, currentRulesPath);
+        rulesWindow.setVisible(true);
+        rulesWindow.toFront();
+    }
+
     private void chooseRulesFile() {
         JFileChooser chooser = new JFileChooser();
         chooser.setFileFilter(new FileNameExtensionFilter("Rules JSON", "json"));
@@ -163,6 +186,9 @@ public final class MainWindow extends JFrame {
             currentRulesPath = rulesPath;
             updateStatusBar();
             logger.info("Loaded {} rules from {}", loaded.getRules().size(), describeRulesSource(rulesPath));
+            if (rulesWindow != null) {
+                rulesWindow.refresh(currentRuleSet, currentRulesPath);
+            }
 
             // Existing results were scored against the previous ruleset; keep them visible but
             // stale results would be misleading, so re-scan everything against the new rules.
