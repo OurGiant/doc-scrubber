@@ -11,7 +11,7 @@
     <packaging>jar</packaging>
 
     <name>DocScrubber</name>
-    <description>Desktop scanner that detects and scrubs prompt-injection "poison pills" hidden in PDF, Word, and text documents before they reach an AI tool</description>
+    <description>Desktop scanner that detects and reports prompt-injection "poison pills" hidden in PDF, Word, and text documents before they reach an AI tool</description>
 
     <properties>
         <maven.compiler.source>24</maven.compiler.source>
@@ -32,7 +32,7 @@
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.3.0</version>
+            <version>5.5.0</version>
         </dependency>
 
         <!-- rules.json / report JSON -->

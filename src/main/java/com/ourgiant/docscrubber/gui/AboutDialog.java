@@ -135,7 +135,10 @@ final class AboutDialog extends JDialog {
     }
 
     private void applyNewerReleaseAvailable(JLabel updateLabel, UpdateChecker.ReleaseInfo info) {
-        updateLabel.setText("<html><a href=''>Version " + info.version() + " available</a></html>");
+        // info.version() is the release tag name straight from GitHub's API — escape before it goes
+        // into this Swing HTML label, or a crafted tag (e.g. "999<img src=...>") renders as live HTML,
+        // including fetching an attacker-chosen image URL every time this dialog/startup check runs.
+        updateLabel.setText("<html><a href=''>Version " + escapeHtml(info.version()) + " available</a></html>");
         updateLabel.setForeground(new Color(0, 102, 204));
         updateLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         updateLabel.addMouseListener(new MouseAdapter() {
@@ -163,5 +166,13 @@ final class AboutDialog extends JDialog {
      */
     static boolean isTrustedReleaseUrl(URI uri) {
         return "https".equalsIgnoreCase(uri.getScheme()) && "github.com".equalsIgnoreCase(uri.getHost());
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) {
+            return "";
+        }
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("\"", "&quot;").replace("'", "&#39;");
     }
 }
