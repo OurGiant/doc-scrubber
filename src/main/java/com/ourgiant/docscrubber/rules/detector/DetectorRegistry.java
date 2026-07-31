@@ -3,6 +3,7 @@ package com.ourgiant.docscrubber.rules.detector;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class DetectorRegistry {
 
@@ -28,5 +29,9 @@ public final class DetectorRegistry {
 
     public boolean isKnown(String id) {
         return detectors.containsKey(id);
+    }
+
+    public Set<String> knownIds() {
+        return Set.copyOf(detectors.keySet());
     }
 }

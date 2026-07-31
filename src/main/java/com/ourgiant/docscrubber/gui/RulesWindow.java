@@ -2,27 +2,48 @@ package com.ourgiant.docscrubber.gui;
 
 import com.ourgiant.docscrubber.rules.Rule;
 import com.ourgiant.docscrubber.rules.RuleSet;
+import com.ourgiant.docscrubber.rules.RulesValidator;
+import com.ourgiant.docscrubber.rules.RulesWriter;
+import com.ourgiant.docscrubber.rules.ValidationResult;
 import com.ourgiant.docscrubber.rules.VerdictThresholds;
+import com.ourgiant.docscrubber.rules.detector.DetectorRegistry;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
- * Read-only inspector for the currently loaded ruleset — what a "poison pill" rule actually checks
+ * Inspector and editor for the currently loaded ruleset — what a "poison pill" rule actually checks
  * for, in plain view, since the whole rules engine is meant to be inspectable rather than opaque.
  * Non-modal so it can stay open while scanning, and {@link #refresh} is called by {@code MainWindow}
  * whenever rules are (re)loaded so it never shows a stale ruleset without the user asking.
+ *
+ * <p>Edits (add/edit/duplicate/delete) apply only to this window's in-memory working copy — they
+ * never touch the app's actively-scanning ruleset until {@link #onSave}/{@link #onSaveAs} writes
+ * them to disk, which hands the path to {@code onSaved} so {@code MainWindow} reloads it through
+ * the exact same validated path as "Load Rules File..." (proving the write round-trips, not just
+ * trusting it did).
  */
 final class RulesWindow extends JDialog {
 
     private static final String ALL_FAMILIES = "All Families";
     private static final String ALL_SEVERITIES = "All Severities";
+
+    private final DetectorRegistry detectorRegistry;
+    private final RulesValidator validator;
+    private final Consumer<Path> onSaved;
 
     private final JLabel sourceLabel = new JLabel(" ");
     private final JLabel weightsLabel = new JLabel(" ");
@@ -34,6 +55,14 @@ final class RulesWindow extends JDialog {
         new JComboBox<>(new String[]{ALL_SEVERITIES, "Info", "Low", "Medium", "High", "Critical"});
     private final JCheckBox enabledOnlyCheck = new JCheckBox("Enabled only");
 
+    private final JButton addRuleButton = new JButton("Add Rule...");
+    private final JButton editRuleButton = new JButton("Edit Rule...");
+    private final JButton duplicateRuleButton = new JButton("Duplicate Rule...");
+    private final JButton deleteRuleButton = new JButton("Delete Rule");
+    private final JButton saveButton = new JButton("Save");
+    private final JButton saveAsButton = new JButton("Save As...");
+    private final JLabel dirtyLabel = new JLabel(" ");
+
     private final RulesTableModel rulesTableModel = new RulesTableModel();
     private final JTable rulesTable = new JTable(rulesTableModel);
     private final JTextArea detailArea = new JTextArea();
@@ -44,9 +73,14 @@ final class RulesWindow extends JDialog {
     private final JTabbedPane tabs = new JTabbedPane();
 
     private RuleSet currentRuleSet;
+    private Path currentRulesPath;
+    private boolean dirty;
 
-    RulesWindow(Frame parent) {
+    RulesWindow(Frame parent, DetectorRegistry detectorRegistry, RulesValidator validator, Consumer<Path> onSaved) {
         super(parent, "Rules", false);
+        this.detectorRegistry = detectorRegistry;
+        this.validator = validator;
+        this.onSaved = onSaved;
         setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 
         setLayout(new BorderLayout(8, 8));
@@ -78,6 +112,24 @@ final class RulesWindow extends JDialog {
     }
 
     private JPanel buildRulesTab() {
+        JPanel actionsBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        actionsBar.add(addRuleButton);
+        actionsBar.add(editRuleButton);
+        actionsBar.add(duplicateRuleButton);
+        actionsBar.add(deleteRuleButton);
+        actionsBar.add(Box.createHorizontalStrut(16));
+        actionsBar.add(saveButton);
+        actionsBar.add(saveAsButton);
+        dirtyLabel.setForeground(new Color(0xB0, 0x60, 0x00));
+        actionsBar.add(dirtyLabel);
+
+        addRuleButton.addActionListener(e -> onAddRule());
+        editRuleButton.addActionListener(e -> onEditRule());
+        duplicateRuleButton.addActionListener(e -> onDuplicateRule());
+        deleteRuleButton.addActionListener(e -> onDeleteRule());
+        saveButton.addActionListener(e -> onSave());
+        saveAsButton.addActionListener(e -> onSaveAs());
+
         JPanel filterBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
         filterBar.add(new JLabel("Search:"));
         filterBar.add(searchField);
@@ -112,6 +164,7 @@ final class RulesWindow extends JDialog {
         rulesTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 showSelectedRuleDetail();
+                updateActionButtonStates();
             }
         });
 
@@ -127,8 +180,12 @@ final class RulesWindow extends JDialog {
         split.setResizeWeight(0.6);
         split.setContinuousLayout(true);
 
+        JPanel northPanel = new JPanel(new BorderLayout());
+        northPanel.add(actionsBar, BorderLayout.NORTH);
+        northPanel.add(filterBar, BorderLayout.SOUTH);
+
         JPanel panel = new JPanel(new BorderLayout());
-        panel.add(filterBar, BorderLayout.NORTH);
+        panel.add(northPanel, BorderLayout.NORTH);
         panel.add(split, BorderLayout.CENTER);
         return panel;
     }
@@ -141,9 +198,15 @@ final class RulesWindow extends JDialog {
         return panel;
     }
 
-    /** Called by {@code MainWindow} on open and every time the ruleset is (re)loaded. */
+    /**
+     * Called by {@code MainWindow} on open and every time the ruleset is (re)loaded — including
+     * right after this window's own {@link #onSave}/{@link #onSaveAs} writes a file, which is what
+     * resets {@link #dirty} back to false once the save round-trips successfully.
+     */
     void refresh(RuleSet ruleSet, Path rulesPath) {
         this.currentRuleSet = ruleSet;
+        this.currentRulesPath = rulesPath;
+        this.dirty = false;
         setTitle(ruleSet == null ? "Rules"
             : "Rules — " + (rulesPath == null ? "bundled default" : rulesPath.toString()));
         updateHeader(ruleSet, rulesPath);
@@ -151,6 +214,196 @@ final class RulesWindow extends JDialog {
         rulesTable.clearSelection();
         detailArea.setText("Select a rule to see full details.");
         applyFilters();
+        updateActionButtonStates();
+    }
+
+    private void updateActionButtonStates() {
+        boolean hasSelection = rulesTable.getSelectedRow() >= 0;
+        boolean hasRuleSet = currentRuleSet != null;
+        addRuleButton.setEnabled(hasRuleSet);
+        editRuleButton.setEnabled(hasRuleSet && hasSelection);
+        duplicateRuleButton.setEnabled(hasRuleSet && hasSelection);
+        deleteRuleButton.setEnabled(hasRuleSet && hasSelection);
+        saveAsButton.setEnabled(hasRuleSet);
+        saveButton.setEnabled(hasRuleSet && dirty && currentRulesPath != null);
+        saveButton.setToolTipText(currentRulesPath == null
+            ? "Save As required — currently using bundled default rules" : null);
+        dirtyLabel.setText(dirty ? "Unsaved changes — Save to apply them to scans" : " ");
+    }
+
+    private Rule selectedRule() {
+        int viewRow = rulesTable.getSelectedRow();
+        if (viewRow < 0) {
+            return null;
+        }
+        return rulesTableModel.ruleAt(rulesTable.convertRowIndexToModel(viewRow));
+    }
+
+    private void onAddRule() {
+        if (currentRuleSet == null) {
+            return;
+        }
+        RuleEditDialog dialog = new RuleEditDialog(this, "Add Rule", null, allRuleIds(), detectorRegistry);
+        dialog.setVisible(true);
+        Rule newRule = dialog.getResult();
+        if (newRule == null) {
+            return;
+        }
+        List<Rule> updated = new ArrayList<>(currentRuleSet.getRules());
+        updated.add(newRule);
+        applyEdit(updated, newRule.getId());
+    }
+
+    private void onEditRule() {
+        Rule selected = selectedRule();
+        if (selected == null || currentRuleSet == null) {
+            return;
+        }
+        Set<String> reservedIds = allRuleIds();
+        reservedIds.remove(selected.getId());
+        RuleEditDialog dialog = new RuleEditDialog(this, "Edit Rule", selected, reservedIds, detectorRegistry);
+        dialog.setVisible(true);
+        Rule edited = dialog.getResult();
+        if (edited == null) {
+            return;
+        }
+        List<Rule> updated = new ArrayList<>(currentRuleSet.getRules());
+        updated.set(updated.indexOf(selected), edited);
+        applyEdit(updated, edited.getId());
+    }
+
+    private void onDuplicateRule() {
+        Rule selected = selectedRule();
+        if (selected == null || currentRuleSet == null) {
+            return;
+        }
+        RuleEditDialog dialog = new RuleEditDialog(this, "Duplicate Rule", selected, allRuleIds(), detectorRegistry);
+        dialog.clearIdField();
+        dialog.setVisible(true);
+        Rule newRule = dialog.getResult();
+        if (newRule == null) {
+            return;
+        }
+        List<Rule> updated = new ArrayList<>(currentRuleSet.getRules());
+        updated.add(newRule);
+        applyEdit(updated, newRule.getId());
+    }
+
+    private void onDeleteRule() {
+        Rule selected = selectedRule();
+        if (selected == null || currentRuleSet == null) {
+            return;
+        }
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Delete rule " + selected.getId() + " (" + selected.getName() + ")?",
+            "Confirm delete", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        List<Rule> updated = new ArrayList<>(currentRuleSet.getRules());
+        updated.remove(selected);
+        applyEdit(updated, null);
+    }
+
+    private Set<String> allRuleIds() {
+        Set<String> ids = new HashSet<>();
+        for (Rule rule : currentRuleSet.getRules()) {
+            ids.add(rule.getId());
+        }
+        return ids;
+    }
+
+    /**
+     * Re-validates the whole edited ruleset before accepting it — an edit is never applied silently
+     * invalid — then re-selects {@code selectAfterId} (the rule that was just added/edited/duplicated,
+     * or {@code null} after a delete) so the table and detail pane give immediate visual confirmation
+     * of what changed instead of dropping the selection.
+     */
+    private void applyEdit(List<Rule> updatedRules, String selectAfterId) {
+        RuleSet updated = new RuleSet(currentRuleSet.getSchemaVersion(), currentRuleSet.getSeverityWeights(),
+            currentRuleSet.getVerdictThresholds(), currentRuleSet.getCombos(), updatedRules);
+        ValidationResult result = validator.validate(updated);
+        if (!result.isValid()) {
+            ValidationDialogs.show(this, "Cannot apply change", result);
+            return;
+        }
+        currentRuleSet = updated;
+        dirty = true;
+        applyFilters();
+        updateActionButtonStates();
+        if (selectAfterId != null) {
+            selectRuleById(selectAfterId);
+        } else {
+            rulesTable.clearSelection();
+            detailArea.setText("Select a rule to see full details.");
+        }
+        if (!result.getWarnings().isEmpty()) {
+            ValidationDialogs.show(this, "Applied with warnings", result);
+        }
+    }
+
+    private void selectRuleById(String id) {
+        for (int viewRow = 0; viewRow < rulesTable.getRowCount(); viewRow++) {
+            int modelRow = rulesTable.convertRowIndexToModel(viewRow);
+            if (id.equals(rulesTableModel.ruleAt(modelRow).getId())) {
+                rulesTable.setRowSelectionInterval(viewRow, viewRow);
+                rulesTable.scrollRectToVisible(rulesTable.getCellRect(viewRow, 0, true));
+                return;
+            }
+        }
+        // Not visible under the current search/family/severity filters — nothing sensible to select.
+        rulesTable.clearSelection();
+        detailArea.setText("Select a rule to see full details.");
+    }
+
+    private void onSave() {
+        if (currentRuleSet == null || currentRulesPath == null) {
+            return;
+        }
+        saveTo(currentRulesPath);
+    }
+
+    private void onSaveAs() {
+        if (currentRuleSet == null) {
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setFileFilter(new FileNameExtensionFilter("Rules JSON", "json"));
+        chooser.setSelectedFile(currentRulesPath != null ? currentRulesPath.toFile() : new File("rules.json"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path target = chooser.getSelectedFile().toPath();
+        if (!target.toString().toLowerCase(Locale.ROOT).endsWith(".json")) {
+            target = target.resolveSibling(target.getFileName() + ".json");
+        }
+        if (Files.exists(target)) {
+            int overwrite = JOptionPane.showConfirmDialog(this, target + " already exists. Overwrite?",
+                "Confirm overwrite", JOptionPane.YES_NO_OPTION);
+            if (overwrite != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
+        saveTo(target);
+    }
+
+    private void saveTo(Path target) {
+        ValidationResult result = validator.validate(currentRuleSet);
+        if (!result.isValid()) {
+            ValidationDialogs.show(this, "Cannot save: rules failed validation", result);
+            return;
+        }
+        try {
+            new RulesWriter().write(target, currentRuleSet);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Failed to write rules file:\n" + e.getMessage(),
+                "Save failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (!result.getWarnings().isEmpty()) {
+            ValidationDialogs.show(this, "Saved with warnings", result);
+        }
+        onSaved.accept(target);
     }
 
     private void updateHeader(RuleSet ruleSet, Path rulesPath) {
@@ -229,12 +482,11 @@ final class RulesWindow extends JDialog {
     }
 
     private void showSelectedRuleDetail() {
-        int viewRow = rulesTable.getSelectedRow();
-        if (viewRow < 0) {
+        Rule selected = selectedRule();
+        if (selected == null) {
             return;
         }
-        int modelRow = rulesTable.convertRowIndexToModel(viewRow);
-        detailArea.setText(formatDetail(rulesTableModel.ruleAt(modelRow)));
+        detailArea.setText(formatDetail(selected));
         detailArea.setCaretPosition(0);
     }
 

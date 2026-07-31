@@ -117,11 +117,15 @@ public final class MainWindow extends JFrame {
         reloadRules.addActionListener(e -> loadRules(currentRulesPath));
         JMenuItem useDefaultRules = new JMenuItem("Use Bundled Default Rules");
         useDefaultRules.addActionListener(e -> loadRules(null));
+        JMenuItem validateRules = new JMenuItem("Validate Rules");
+        validateRules.addActionListener(e -> validateCurrentRules());
         rulesMenu.add(viewRules);
         rulesMenu.addSeparator();
         rulesMenu.add(loadRulesFile);
         rulesMenu.add(reloadRules);
         rulesMenu.add(useDefaultRules);
+        rulesMenu.addSeparator();
+        rulesMenu.add(validateRules);
 
         JMenu viewMenu = new JMenu("View");
         JMenu themeMenu = new JMenu("Theme");
@@ -150,7 +154,7 @@ public final class MainWindow extends JFrame {
 
     private void showRulesWindow() {
         if (rulesWindow == null) {
-            rulesWindow = new RulesWindow(this);
+            rulesWindow = new RulesWindow(this, detectorRegistry, rulesValidator, this::loadRules);
             rulesWindow.addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosed(WindowEvent e) {
@@ -161,6 +165,15 @@ public final class MainWindow extends JFrame {
         rulesWindow.refresh(currentRuleSet, currentRulesPath);
         rulesWindow.setVisible(true);
         rulesWindow.toFront();
+    }
+
+    private void validateCurrentRules() {
+        if (currentRuleSet == null) {
+            JOptionPane.showMessageDialog(this, "No rules loaded.", "Validate Rules", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        ValidationResult result = rulesValidator.validate(currentRuleSet);
+        ValidationDialogs.show(this, "Validate Rules — " + describeRulesSource(currentRulesPath), result);
     }
 
     private void chooseRulesFile() {
