@@ -42,7 +42,7 @@ public final class DocumentScanner {
         List<String> limitations = new ArrayList<>(model.getLimitations());
         limitations.addAll(evaluation.warnings());
 
-        ScoreReport report = scorer.score(evaluation.findings(), ruleSet, limitations);
+        ScoreReport report = scorer.score(evaluation.findings(), ruleSet, limitations, model.getEmbeddedObjectCount());
         return new ScanResult(file, model.getFormat(), report);
     }
 

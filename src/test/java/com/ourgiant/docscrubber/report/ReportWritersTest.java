@@ -36,6 +36,28 @@ class ReportWritersTest {
     }
 
     @Test
+    void jsonReportIncludesEmbeddedObjectCount(@TempDir Path dir) throws Exception {
+        ScoreReport report = new ScoreReport(55, Verdict.SUSPICIOUS, List.of(), List.of(), 3);
+        Path target = dir.resolve("report-embedded.json");
+
+        new JsonReportWriter().write(target, Path.of("sample.docx"), report);
+
+        JsonNode root = new ObjectMapper().readTree(Files.readString(target));
+        assertEquals(3, root.get("embeddedObjectCount").asInt());
+    }
+
+    @Test
+    void jsonReportDefaultsEmbeddedObjectCountToZero(@TempDir Path dir) throws Exception {
+        ScoreReport report = sampleReport();
+        Path target = dir.resolve("report-no-embedded.json");
+
+        new JsonReportWriter().write(target, Path.of("sample.docx"), report);
+
+        JsonNode root = new ObjectMapper().readTree(Files.readString(target));
+        assertEquals(0, root.get("embeddedObjectCount").asInt());
+    }
+
+    @Test
     void htmlReportEscapesEvidenceAndShowsLimitations(@TempDir Path dir) throws Exception {
         ScoreReport report = sampleReport();
         Path target = dir.resolve("report.html");

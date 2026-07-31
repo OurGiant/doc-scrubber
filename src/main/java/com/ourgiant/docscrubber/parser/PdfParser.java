@@ -16,8 +16,10 @@ import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceGrayCo
 import org.apache.pdfbox.contentstream.operator.color.SetNonStrokingDeviceRGBColor;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentInformation;
+import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
 import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -29,6 +31,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Extracts text plus per-character visibility (render mode, fill color, font size, on/off-page
@@ -70,6 +73,7 @@ public final class PdfParser implements DocumentParser {
     @Override
     public ExtractionModel parse(Path path) throws IOException {
         List<TextFragment> fragments = new ArrayList<>();
+        int embeddedObjectCount;
         try (PDDocument document = Loader.loadPDF(path.toFile())) {
             extractMetadata(document, fragments);
 
@@ -78,8 +82,26 @@ public final class PdfParser implements DocumentParser {
             stripper.setStartPage(1);
             stripper.setEndPage(document.getNumberOfPages());
             stripper.getText(document);
+
+            embeddedObjectCount = countEmbeddedFiles(document);
         }
-        return new ExtractionModel(path, DocumentFormat.PDF, fragments, LIMITATIONS);
+
+        List<String> limitations = new ArrayList<>(LIMITATIONS);
+        if (embeddedObjectCount > 0) {
+            limitations.add("This document contains " + embeddedObjectCount + " embedded file attachment(s) "
+                + "that were not scanned for hidden text — see the report's embeddedObjectCount field.");
+        }
+        return new ExtractionModel(path, DocumentFormat.PDF, fragments, limitations, embeddedObjectCount);
+    }
+
+    /** Counts the document-level embedded-files name tree (a PDF viewer's "Attachments" panel) — not page-level FileAttachment annotations or a Kids-structured name tree, which are rarer in practice. */
+    private int countEmbeddedFiles(PDDocument document) throws IOException {
+        PDDocumentNameDictionary names = document.getDocumentCatalog().getNames();
+        if (names == null || names.getEmbeddedFiles() == null) {
+            return 0;
+        }
+        Map<String, PDComplexFileSpecification> embeddedFiles = names.getEmbeddedFiles().getNames();
+        return embeddedFiles == null ? 0 : embeddedFiles.size();
     }
 
     private void extractMetadata(PDDocument document, List<TextFragment> out) {

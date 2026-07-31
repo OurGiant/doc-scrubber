@@ -7,6 +7,7 @@ import com.ourgiant.docscrubber.model.SourceLocation;
 import com.ourgiant.docscrubber.model.TextFragment;
 import com.ourgiant.docscrubber.model.VisibilityAttributes;
 import com.ourgiant.docscrubber.util.ColorUtil;
+import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
 import org.apache.poi.xwpf.usermodel.XWPFComment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
@@ -63,6 +64,7 @@ public final class DocxParser implements DocumentParser {
     @Override
     public ExtractionModel parse(Path path) throws IOException {
         List<TextFragment> fragments = new ArrayList<>();
+        int embeddedObjectCount;
         try (InputStream in = Files.newInputStream(path); XWPFDocument doc = new XWPFDocument(in)) {
             extractParagraphs(doc.getParagraphs(), Channel.BODY, fragments);
             extractTrackedChanges(doc.getParagraphs(), fragments);
@@ -72,8 +74,24 @@ public final class DocxParser implements DocumentParser {
             extractComments(doc, fragments);
             extractFootnotes(doc, fragments);
             extractProperties(doc, fragments);
+            embeddedObjectCount = countEmbeddedParts(doc);
         }
-        return new ExtractionModel(path, DocumentFormat.DOCX, fragments, List.of());
+
+        List<String> limitations = new ArrayList<>();
+        if (embeddedObjectCount > 0) {
+            limitations.add("This document contains " + embeddedObjectCount + " embedded object(s) (e.g. OLE "
+                + "objects, embedded files) that were not scanned for hidden text — see the report's "
+                + "embeddedObjectCount field.");
+        }
+        return new ExtractionModel(path, DocumentFormat.DOCX, fragments, limitations, embeddedObjectCount);
+    }
+
+    private int countEmbeddedParts(XWPFDocument doc) throws IOException {
+        try {
+            return doc.getAllEmbeddedParts().size();
+        } catch (OpenXML4JException e) {
+            throw new IOException("Failed to enumerate embedded objects", e);
+        }
     }
 
     private void extractParagraphs(List<XWPFParagraph> paragraphs, Channel channel, List<TextFragment> out) {

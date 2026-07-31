@@ -151,6 +151,24 @@ class ScorerTest {
         assertEquals(limitations, report.getLimitations());
     }
 
+    @Test
+    void carriesEmbeddedObjectCountThrough() {
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
+
+        ScoreReport report = scorer.score(List.of(), ruleSet, List.of(), 4);
+
+        assertEquals(4, report.getEmbeddedObjectCount());
+    }
+
+    @Test
+    void defaultsEmbeddedObjectCountToZeroWhenNotSpecified() {
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
+
+        ScoreReport report = scorer.score(List.of(), ruleSet, List.of());
+
+        assertEquals(0, report.getEmbeddedObjectCount());
+    }
+
     private Finding finding(String ruleId, int weight, int fragmentIndex, List<String> tags) {
         return finding(ruleId, weight, fragmentIndex, tags, Channel.BODY);
     }

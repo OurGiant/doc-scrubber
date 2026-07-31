@@ -20,12 +20,19 @@ public final class ExtractionModel {
     private final DocumentFormat format;
     private final List<TextFragment> fragments;
     private final List<String> limitations;
+    private final int embeddedObjectCount;
 
     public ExtractionModel(Path sourcePath, DocumentFormat format, List<TextFragment> fragments, List<String> limitations) {
+        this(sourcePath, format, fragments, limitations, 0);
+    }
+
+    /** @param embeddedObjectCount count of embedded files/OLE objects the parser detected but did not scan for text — see {@code ScoreReport#getEmbeddedObjectCount()}. */
+    public ExtractionModel(Path sourcePath, DocumentFormat format, List<TextFragment> fragments, List<String> limitations, int embeddedObjectCount) {
         this.sourcePath = sourcePath;
         this.format = format;
         this.fragments = Collections.unmodifiableList(fragments);
         this.limitations = Collections.unmodifiableList(limitations);
+        this.embeddedObjectCount = embeddedObjectCount;
     }
 
     public Path getSourcePath() {
@@ -47,5 +54,10 @@ public final class ExtractionModel {
 
     public boolean hasLimitations() {
         return !limitations.isEmpty();
+    }
+
+    /** Count of embedded files/OLE objects the parser detected but did not scan for text (0 if the format has no such concept, or none were found). */
+    public int getEmbeddedObjectCount() {
+        return embeddedObjectCount;
     }
 }

@@ -87,6 +87,28 @@ class PdfParserTest {
         assertFalse(metadata.getVisibility().isHidden());
     }
 
+    @Test
+    void countsEmbeddedFileAttachmentsAndAddsALimitationNotice(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded.pdf");
+        FixtureBuilder.pdfWithEmbeddedFile(file, "Ordinary visible document body.", 3);
+
+        ExtractionModel model = parser.parse(file);
+
+        assertEquals(3, model.getEmbeddedObjectCount());
+        assertTrue(model.getLimitations().stream().anyMatch(l -> l.contains("3 embedded file")),
+            "Expected a limitations entry mentioning the embedded file count: " + model.getLimitations());
+    }
+
+    @Test
+    void plainPdfHasNoEmbeddedFiles(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("plain-no-embed.pdf");
+        FixtureBuilder.pdfPlain(file, "Nothing suspicious here.");
+
+        ExtractionModel model = parser.parse(file);
+
+        assertEquals(0, model.getEmbeddedObjectCount());
+    }
+
     private TextFragment findByText(ExtractionModel model, String needle) {
         List<TextFragment> matches = model.getFragments().stream()
             .filter(f -> f.getText().contains(needle))

@@ -16,12 +16,18 @@ public final class ScoreReport {
     private final Verdict verdict;
     private final List<Finding> findings;
     private final List<String> limitations;
+    private final int embeddedObjectCount;
 
     public ScoreReport(int score, Verdict verdict, List<Finding> findings, List<String> limitations) {
+        this(score, verdict, findings, limitations, 0);
+    }
+
+    public ScoreReport(int score, Verdict verdict, List<Finding> findings, List<String> limitations, int embeddedObjectCount) {
         this.score = score;
         this.verdict = verdict;
         this.findings = List.copyOf(findings);
         this.limitations = List.copyOf(limitations);
+        this.embeddedObjectCount = embeddedObjectCount;
     }
 
     public int getScore() {
@@ -42,5 +48,10 @@ public final class ScoreReport {
 
     public boolean hasLimitations() {
         return !limitations.isEmpty();
+    }
+
+    /** Count of embedded files/OLE objects the parser detected but did not scan for text (0 if none). */
+    public int getEmbeddedObjectCount() {
+        return embeddedObjectCount;
     }
 }
