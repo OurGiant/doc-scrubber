@@ -329,6 +329,47 @@ public final class FixtureBuilder {
         }
     }
 
+    // ---------------------------------------------------------------- json / yaml / xml
+
+    /** A nested object value plus an array element value, both potential payload locations. */
+    public static void jsonWithPayloads(Path target, String nestedValuePayload, String arrayValuePayload) throws IOException {
+        String json = "{\n"
+            + "  \"config\": {\n"
+            + "    \"description\": \"" + nestedValuePayload + "\"\n"
+            + "  },\n"
+            + "  \"items\": [\"plain value\", \"" + arrayValuePayload + "\"]\n"
+            + "}\n";
+        Files.writeString(target, json, StandardCharsets.UTF_8);
+    }
+
+    /** A mapped scalar value plus a standalone {@code #} comment line, both potential payload locations. */
+    public static void yamlWithPayloadAndComment(Path target, String valuePayload, String commentPayload) throws IOException {
+        String yaml = "config:\n"
+            + "  description: \"" + valuePayload + "\"\n"
+            + "# " + commentPayload + "\n"
+            + "items:\n"
+            + "  - plain value\n";
+        Files.writeString(target, yaml, StandardCharsets.UTF_8);
+    }
+
+    /** An element text payload, an attribute value payload, and a comment payload, all potential payload locations. */
+    public static void xmlWithPayloads(Path target, String elementTextPayload, String attributePayload, String commentPayload) throws IOException {
+        String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<root>\n"
+            + "  <item attr=\"" + attributePayload + "\">" + elementTextPayload + "</item>\n"
+            + "  <!-- " + commentPayload + " -->\n"
+            + "</root>\n";
+        Files.writeString(target, xml, StandardCharsets.UTF_8);
+    }
+
+    /** An XML document with an internal DOCTYPE declaring an external entity pointing at {@code secretFile}, attempting classic XXE file disclosure. */
+    public static void xmlWithXxeAttempt(Path target, Path secretFile) throws IOException {
+        String xml = "<?xml version=\"1.0\"?>\n"
+            + "<!DOCTYPE root [<!ENTITY xxe SYSTEM \"file://" + secretFile.toAbsolutePath() + "\">]>\n"
+            + "<root>&xxe;</root>\n";
+        Files.writeString(target, xml, StandardCharsets.UTF_8);
+    }
+
     private static void save(XWPFDocument doc, Path target) throws IOException {
         try (OutputStream out = Files.newOutputStream(target)) {
             doc.write(out);

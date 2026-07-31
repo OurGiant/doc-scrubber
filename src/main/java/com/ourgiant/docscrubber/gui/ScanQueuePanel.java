@@ -82,7 +82,8 @@ final class ScanQueuePanel extends JPanel {
     void chooseFiles() {
         JFileChooser chooser = new JFileChooser();
         chooser.setMultiSelectionEnabled(true);
-        chooser.setFileFilter(new FileNameExtensionFilter("Supported documents (txt, md, docx, pdf)", "txt", "md", "markdown", "docx", "pdf"));
+        chooser.setFileFilter(new FileNameExtensionFilter("Supported documents (txt, md, docx, pdf, json, yaml, xml)",
+            "txt", "md", "markdown", "docx", "pdf", "json", "yaml", "yml", "xml"));
         int result = chooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             for (File f : chooser.getSelectedFiles()) {
