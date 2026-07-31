@@ -67,6 +67,81 @@ class ScorerTest {
     }
 
     @Test
+    void capsRepeatedHitsOfSameRuleInSameChannelInsteadOfScalingLinearly() {
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
+        // Same rule, same channel, three different fragments -> would sum to 60 uncapped.
+        List<Finding> findings = List.of(
+            finding("R1", 20, 0, List.of()),
+            finding("R1", 20, 1, List.of()),
+            finding("R1", 20, 2, List.of())
+        );
+
+        // Capped at 1.5x the 20-point base weight = 30.
+        assertEquals(30, scorer.score(findings, ruleSet, List.of()).getScore());
+    }
+
+    @Test
+    void doesNotCapSameRuleAcrossDifferentChannels() {
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
+        List<Finding> findings = List.of(
+            finding("R1", 20, 0, List.of(), Channel.BODY),
+            finding("R1", 20, 1, List.of(), Channel.METADATA)
+        );
+
+        // Each channel is its own group (20 each, both under their own 30-point cap) -> sums normally.
+        assertEquals(40, scorer.score(findings, ruleSet, List.of()).getScore());
+    }
+
+    @Test
+    void doesNotCapDifferentRulesInTheSameChannel() {
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
+        List<Finding> findings = List.of(
+            finding("R1", 20, 0, List.of()),
+            finding("R1", 20, 1, List.of()),
+            finding("R2", 20, 2, List.of())
+        );
+
+        // R1 group capped at 30; R2 is its own group, uncapped at 20.
+        assertEquals(50, scorer.score(findings, ruleSet, List.of()).getScore());
+    }
+
+    @Test
+    void repeatCapNeverSuppressesASingleFindingBelowItsOwnComboBoostedValue() {
+        Combo combo = new Combo("C1", "desc", List.of("injection", "hidden-text"), true, 2.0);
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(combo), List.of());
+
+        // A single R1 hit whose fragment also carries a hidden-text-tagged finding: combo multiplies
+        // R1's 20-point weight to 40, which already exceeds the 1.5x (30-point) repeat cap on its own.
+        List<Finding> findings = List.of(
+            finding("R1", 20, 0, List.of("injection")),
+            finding("R2", 10, 0, List.of("hidden-text"))
+        );
+
+        // R1 alone must score 40 (its own combo-boosted value), never suppressed down to the 30-point cap.
+        // R2 (weight 10, also combo-boosted to 20) is its own group -> total 40 + 20 = 60.
+        assertEquals(60, scorer.score(findings, ruleSet, List.of()).getScore());
+    }
+
+    @Test
+    void repeatCapBoundsOnlyTheAdditionalRepeatsNotTheStrongestSingleInstance() {
+        Combo combo = new Combo("C1", "desc", List.of("injection", "hidden-text"), true, 2.0);
+        RuleSet ruleSet = new RuleSet(1, null, null, List.of(combo), List.of());
+
+        // R1 fires twice in the same channel: once combo-boosted to 40 (fragment 0, paired with a
+        // hidden-text finding), once plain at 20 (fragment 1, no combo). Uncapped sum would be 60;
+        // the 1.5x (30-point) cap is below the single strongest instance (40), so the group must
+        // score exactly 40 -- the repeat at fragment 1 adds nothing once the floor is already above the cap.
+        List<Finding> findings = List.of(
+            finding("R1", 20, 0, List.of("injection")),
+            finding("R2", 10, 0, List.of("hidden-text")),
+            finding("R1", 20, 1, List.of())
+        );
+
+        // R1 group: 40 (floor, not suppressed to 30). R2 group: 20 (combo-boosted, its own group).
+        assertEquals(60, scorer.score(findings, ruleSet, List.of()).getScore());
+    }
+
+    @Test
     void carriesLimitationsThroughUnchanged() {
         RuleSet ruleSet = new RuleSet(1, null, null, List.of(), List.of());
         List<String> limitations = List.of("PDF background color is assumed white.");
@@ -77,6 +152,10 @@ class ScorerTest {
     }
 
     private Finding finding(String ruleId, int weight, int fragmentIndex, List<String> tags) {
-        return new Finding(ruleId, ruleId, Severity.MEDIUM, weight, Channel.BODY, SourceLocation.page(0), "evidence", tags, "remove", fragmentIndex);
+        return finding(ruleId, weight, fragmentIndex, tags, Channel.BODY);
+    }
+
+    private Finding finding(String ruleId, int weight, int fragmentIndex, List<String> tags, Channel channel) {
+        return new Finding(ruleId, ruleId, Severity.MEDIUM, weight, channel, SourceLocation.page(0), "evidence", tags, "remove", fragmentIndex);
     }
 }
