@@ -4,18 +4,25 @@ import com.ourgiant.docscrubber.rules.UnicodeRanges;
 
 import java.text.Normalizer;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Produces a "shadow" copy of fragment text for content-rule (regex/keywordList) matching only.
  * NFKC-normalizes (collapsing fullwidth/compatibility characters, e.g. the fullwidth Latin block,
- * back to their plain ASCII equivalents) and strips the same zero-width/bidi/tags-block code points
- * CONTENT-020/021/022 detect. Without this, an evasion like fullwidth "ｉｇｎｏｒｅ" or
- * zero-width-interleaved "i&#8203;g&#8203;n&#8203;o&#8203;r&#8203;e" defeats every phrase-matching
- * content rule outright.
+ * back to their plain ASCII equivalents), strips the same zero-width/bidi/tags-block code points
+ * CONTENT-020/021/022 detect, and strips HTML/XML comments. Without this, an evasion like fullwidth
+ * "ｉｇｎｏｒｅ", zero-width-interleaved "i&#8203;g&#8203;n&#8203;o&#8203;r&#8203;e", or
+ * "ignore&lt;!-- x --&gt;previous instructions" defeats every phrase-matching content rule outright.
  *
  * <p>The {@code unicodeClass} rules themselves, and all evidence shown to the user, always use the
  * original unmodified fragment text — stripping first would make CONTENT-020/021/022 never fire,
  * and hiding the disguise from evidence would defeat the point of revealing it.
+ *
+ * <p>Deliberately does <em>not</em> strip HTML/XML tags generically (only comments): CONTENT-005
+ * (fake system markers like {@code <system>}), CONTENT-006 ({@code <|im_start|>}-style tokens), and
+ * CONTENT-011 ({@code <img src=...>} exfiltration) are themselves regex rules that run against this
+ * shadow copy and rely on that literal {@code <...>} syntax as their detection signature — stripping
+ * tags generically would remove the payload before those rules ever saw it.
  */
 final class TextNormalizer {
 
@@ -28,6 +35,8 @@ final class TextNormalizer {
         new UnicodeRanges.Range(0xE0000, 0xE007F) // Unicode tags block
     );
 
+    private static final Pattern HTML_COMMENT = Pattern.compile("<!--.*?-->", Pattern.DOTALL);
+
     private TextNormalizer() {
     }
 
@@ -39,6 +48,10 @@ final class TextNormalizer {
                 result.appendCodePoint(cp);
             }
         });
-        return result.toString();
+        // Replaced with a space, not deleted outright: an attacker-placed comment often sits exactly
+        // where a phrase-matching rule's whitespace gap would be (e.g. "ignore<!-- x -->previous
+        // instructions"), and deleting it entirely would concatenate the words with no separator,
+        // still defeating rules like CONTENT-001 that require [\s\p{Zs}]+ between tokens.
+        return HTML_COMMENT.matcher(result).replaceAll(" ");
     }
 }
