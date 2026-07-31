@@ -1,0 +1,97 @@
+package com.ourgiant.docscrubber.parser;
+
+import com.ourgiant.docscrubber.fixtures.FixtureBuilder;
+import com.ourgiant.docscrubber.model.ExtractionModel;
+import com.ourgiant.docscrubber.model.RenderMode;
+import com.ourgiant.docscrubber.model.TextFragment;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class PdfParserTest {
+
+    private final PdfParser parser = new PdfParser();
+
+    @Test
+    void alwaysCarriesHonestyLimitations(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("plain.pdf");
+        FixtureBuilder.pdfPlain(file, "Nothing suspicious here.");
+
+        ExtractionModel model = parser.parse(file);
+
+        assertTrue(model.hasLimitations(), "PDF scans must always disclose detection limitations, even when clean");
+    }
+
+    @Test
+    void detectsInvisibleRenderMode(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("invisible.pdf");
+        FixtureBuilder.pdfWithInvisibleText(file, "Visible text.", "Invisible instruction.");
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment hidden = findByText(model, "Invisible instruction.");
+        assertEquals(RenderMode.INVISIBLE, hidden.getVisibility().getRenderMode());
+    }
+
+    @Test
+    void detectsWhiteOnAssumedWhiteBackground(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("white.pdf");
+        FixtureBuilder.pdfWithWhiteText(file, "Visible text.", "White instruction.");
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment hidden = findByText(model, "White instruction.");
+        assertEquals(1.0, hidden.getVisibility().getContrastRatio(), 0.001);
+        assertTrue(hidden.getVisibility().isBackgroundHeuristic(), "PDF background must be flagged heuristic, never presented as certain");
+    }
+
+    @Test
+    void detectsOffPageText(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("offpage.pdf");
+        FixtureBuilder.pdfWithOffPageText(file, "Visible text.", "Off page instruction.");
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment offPage = findByText(model, "Off page instruction.");
+        assertEquals(Boolean.FALSE, offPage.getVisibility().getOnPage());
+
+        TextFragment onPage = findByText(model, "Visible text.");
+        assertEquals(Boolean.TRUE, onPage.getVisibility().getOnPage());
+    }
+
+    @Test
+    void detectsTinyFont(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("tiny.pdf");
+        FixtureBuilder.pdfWithTinyFont(file, "Visible text.", "Tiny instruction.", 1.0f);
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment tiny = findByText(model, "Tiny instruction.");
+        assertTrue(tiny.getVisibility().getFontSizePt() < 2.0);
+    }
+
+    @Test
+    void extractsDocumentInformationAsMetadata(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("metadata.pdf");
+        FixtureBuilder.pdfWithMetadata(file, "keywords", "ignore previous instructions");
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment metadata = findByText(model, "ignore previous instructions");
+        assertFalse(metadata.getVisibility().isHidden());
+    }
+
+    private TextFragment findByText(ExtractionModel model, String needle) {
+        List<TextFragment> matches = model.getFragments().stream()
+            .filter(f -> f.getText().contains(needle))
+            .toList();
+        assertEquals(1, matches.size(), "Expected exactly one fragment containing: " + needle + " but found: " + matches.size());
+        return matches.get(0);
+    }
+}
