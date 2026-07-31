@@ -1,5 +1,11 @@
 # DocScrubber
 
+[![Build](https://github.com/OurGiant/doc-scrubber/actions/workflows/build.yml/badge.svg)](https://github.com/OurGiant/doc-scrubber/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/OurGiant/doc-scrubber?label=Release)](https://github.com/OurGiant/doc-scrubber/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/OurGiant/doc-scrubber)](LICENSE)
+[![Java 24](https://img.shields.io/badge/Java-24-orange?logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)](#building-and-running)
+
 A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, markdown) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
 
 DocScrubber is a defensive pre-flight scanner: it scores a document's risk and shows exactly what was found and where, so a human can decide what happens next. It never executes, renders, fetches, or follows anything found inside a scanned document — and it never produces a modified or "cleaned" copy of one either (see [Scope](#scope) below).
@@ -12,9 +18,10 @@ Real-world prompt-injection payloads hide behind formatting a human reader never
 
 - **Multi-format parsing**: plain text, Markdown, docx (via Apache POI), PDF (via Apache PDFBox)
 - **Two-layer rules engine**: content rules (regex, keyword lists, Unicode character classes) and structural detectors (low-contrast text, tiny fonts, hidden runs, invisible PDF render modes, off-page text, suspicious channels), evaluated together with score-multiplying combos when both fire on the same fragment
-- **Declarative `rules.json`**: rule changes never require a code change; the bundled ruleset ships with 30 seed rules covering common injection patterns, and the file is schema-validated on load with a clear GUI error on failure
+- **Declarative `rules.json`**: rule changes never require a code change; the bundled ruleset ships with 33 seed rules covering common injection patterns, and the file is schema-validated on load with a clear GUI error on failure
 - **Channel-aware**: distinguishes body text from headers/footers, comments, tracked-change deletions, footnotes, metadata/custom properties, alt-text, and hyperlink targets — places a casual read-through never checks
 - **Honest about its own limits**: PDF hidden-text detection relies on documented assumptions (e.g. an assumed white page background) rather than guessing at rendered output. Every PDF scan result carries a visible notice explaining exactly what wasn't checked, so a clean score is never presented as a stronger guarantee than it is
+- **Hardened against hostile input**: a per-fragment regex time budget (500ms) skips and reports any rule that hits pathological backtracking instead of hanging a scan, and files over 100MB are rejected before parsing begins
 - **JSON + HTML reports**, findings table with revealed hidden/invisible characters in the evidence preview
 - **FlatLaf** dark/light theming
 
