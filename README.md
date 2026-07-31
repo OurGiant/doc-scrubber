@@ -2,7 +2,7 @@
 
 A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, markdown) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
 
-DocScrubber is a defensive pre-flight scanner: it scores a document's risk, shows exactly what was found and where, and (in a future release) produces a cleaned copy. It never executes, renders, fetches, or follows anything found inside a scanned document.
+DocScrubber is a defensive pre-flight scanner: it scores a document's risk and shows exactly what was found and where, so a human can decide what happens next. It never executes, renders, fetches, or follows anything found inside a scanned document — and it never produces a modified or "cleaned" copy of one either (see [Scope](#scope) below).
 
 ## Why
 
@@ -52,7 +52,13 @@ com.ourgiant.docscrubber
 
 ## Status
 
-This is a Phase 1 build: parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, and a functional scan/results/export GUI. Sanitization (producing a cleaned copy) and batch-mode UI polish are planned for later phases.
+This is a Phase 1 build: parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation. Batch-mode UI polish is planned for a later phase.
+
+## Scope
+
+DocScrubber intentionally does not produce a "cleaned" copy of a scanned document, and won't. A tool that edits out what it found is taking ownership of the document's safety — and a detector that also hands back a guaranteed-safe rewrite is promising something it can't back up. Missing one payload variant and returning a document that now carries an implicit stamp of approval is worse than not sanitizing at all. Stripping to plain text to sidestep that risk just trades one problem for another (reformats the document, discards structure the recipient may need) without removing it, and a scan-clean-rescan loop only ever chases whatever the current ruleset happens to catch — in an adversarial setting, what it misses is exactly the risk.
+
+The correct response to a compromised document is to reject it and have the originator correct and resubmit it, not to make it usable. DocScrubber's job stops at giving you the evidence to make that call.
 
 ## License
 
