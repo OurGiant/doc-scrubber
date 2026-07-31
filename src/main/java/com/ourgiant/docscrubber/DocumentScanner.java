@@ -10,7 +10,9 @@ import com.ourgiant.docscrubber.score.ScoreReport;
 import com.ourgiant.docscrubber.score.Scorer;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Ties parse -> rules -> score into the one call the GUI (and tests) actually need. */
@@ -27,9 +29,20 @@ public final class DocumentScanner {
     }
 
     public ScanResult scan(Path file, RuleSet ruleSet) throws IOException {
+        long size = Files.size(file);
+        if (size > ScanLimits.MAX_FILE_SIZE_BYTES) {
+            throw new IOException("File is " + ScanLimits.formatSize(size) + ", over the "
+                + ScanLimits.describeMaxFileSize() + " scan limit — skipped rather than risk an "
+                + "incomplete or hung scan on a file this large.");
+        }
+
         ExtractionModel model = parsers.parse(file);
-        List<Finding> findings = engine.evaluate(model, ruleSet);
-        ScoreReport report = scorer.score(findings, ruleSet, model.getLimitations());
+        RulesEngine.EvaluationResult evaluation = engine.evaluate(model, ruleSet);
+
+        List<String> limitations = new ArrayList<>(model.getLimitations());
+        limitations.addAll(evaluation.warnings());
+
+        ScoreReport report = scorer.score(evaluation.findings(), ruleSet, limitations);
         return new ScanResult(file, model.getFormat(), report);
     }
 

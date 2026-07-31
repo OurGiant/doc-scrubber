@@ -92,7 +92,7 @@ class EndToEndScanTest {
     private ScoreReport scan(Path file) throws Exception {
         RuleSet rules = loadValidatedDefaultRuleSet();
         ExtractionModel model = parsers.parse(file);
-        List<Finding> findings = engine.evaluate(model, rules);
-        return scorer.score(findings, rules, model.getLimitations());
+        RulesEngine.EvaluationResult evaluation = engine.evaluate(model, rules);
+        return scorer.score(evaluation.findings(), rules, model.getLimitations());
     }
 }
