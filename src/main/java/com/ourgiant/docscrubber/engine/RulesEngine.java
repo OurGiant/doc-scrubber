@@ -23,7 +23,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Evaluates every enabled rule in a {@link RuleSet} against every fragment of an {@link ExtractionModel}, producing raw (pre-scoring) {@link Finding}s. */
+/**
+ * Evaluates every enabled rule in a {@link RuleSet} against every fragment of an {@link ExtractionModel}, producing raw (pre-scoring) {@link Finding}s.
+ *
+ * <p>{@code regex}/{@code keywordList} rules are matched against a {@link TextNormalizer#shadow}
+ * copy of each fragment's text (NFKC-normalized, zero-width/bidi/tags-block characters stripped),
+ * not the raw text — otherwise a disguised phrase like fullwidth "ｉｇｎｏｒｅ" or
+ * zero-width-interleaved letters defeats every phrase-matching rule outright. {@code unicodeClass}
+ * rules and the evidence attached to every {@link Finding} always use the original, unmodified text:
+ * the former exists specifically to detect these characters' presence, and the latter exists to show
+ * a human reviewer the disguise itself.
+ */
 public final class RulesEngine {
 
     private static final Logger logger = LoggerFactory.getLogger(RulesEngine.class);
@@ -64,11 +74,12 @@ public final class RulesEngine {
         List<TextFragment> fragments = model.getFragments();
         for (int i = 0; i < fragments.size(); i++) {
             TextFragment fragment = fragments.get(i);
+            String shadowText = TextNormalizer.shadow(fragment.getText());
             for (Rule rule : enabledRules) {
                 if (!appliesToChannel(rule, fragment.getChannel())) {
                     continue;
                 }
-                if (matches(rule, fragment, compiledPatterns, unicodeRanges, timedOutRuleIds, warnings)) {
+                if (matches(rule, fragment, shadowText, compiledPatterns, unicodeRanges, timedOutRuleIds, warnings)) {
                     findings.add(toFinding(rule, ruleSet, fragment, i));
                 }
             }
@@ -108,7 +119,7 @@ public final class RulesEngine {
         return rule.appliesToAllChannels() || rule.getChannels().stream().anyMatch(c -> c.equalsIgnoreCase(channel.name()));
     }
 
-    private boolean matches(Rule rule, TextFragment fragment, Map<String, Pattern> compiledPatterns,
+    private boolean matches(Rule rule, TextFragment fragment, String shadowText, Map<String, Pattern> compiledPatterns,
         Map<String, List<UnicodeRanges.Range>> unicodeRanges, Set<String> timedOutRuleIds, List<String> warnings) {
         if (rule.getFamily() == RuleFamily.STRUCTURAL) {
             return detectorRegistry.lookup(rule.getDetector())
@@ -116,14 +127,14 @@ public final class RulesEngine {
                 .orElse(false);
         }
         return switch (rule.getType()) {
-            case REGEX -> matchesRegex(rule, fragment, compiledPatterns, timedOutRuleIds, warnings);
-            case KEYWORD_LIST -> matchesAnyKeyword(rule, fragment.getText());
+            case REGEX -> matchesRegex(rule, shadowText, compiledPatterns, timedOutRuleIds, warnings);
+            case KEYWORD_LIST -> matchesAnyKeyword(rule, shadowText);
             case UNICODE_CLASS -> matchesAnyCodePoint(fragment.getText(), unicodeRanges.get(rule.getId()));
             case DETECTOR -> false; // unreachable: DETECTOR only occurs on STRUCTURAL rules, handled above
         };
     }
 
-    private boolean matchesRegex(Rule rule, TextFragment fragment, Map<String, Pattern> compiledPatterns,
+    private boolean matchesRegex(Rule rule, String text, Map<String, Pattern> compiledPatterns,
         Set<String> timedOutRuleIds, List<String> warnings) {
         if (timedOutRuleIds.contains(rule.getId())) {
             return false; // already known pathological against this document; don't keep re-timing-out per fragment
@@ -133,7 +144,7 @@ public final class RulesEngine {
             return false;
         }
         try {
-            return pattern.matcher(TimeBoundedCharSequence.withTimeout(fragment.getText(), regexTimeoutMillis)).find();
+            return pattern.matcher(TimeBoundedCharSequence.withTimeout(text, regexTimeoutMillis)).find();
         } catch (RegexTimeoutException e) {
             if (timedOutRuleIds.add(rule.getId())) {
                 String warning = "Rule " + rule.getId() + " (" + rule.getName() + ") took too long to match and was "
