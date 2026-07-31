@@ -1,5 +1,6 @@
 package com.ourgiant.docscrubber.fixtures;
 
+import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
@@ -77,6 +78,17 @@ public final class FixtureBuilder {
         try (XWPFDocument doc = new XWPFDocument()) {
             XWPFParagraph paragraph = doc.createParagraph();
             paragraph.createRun().setText(visibleText + smuggled);
+            save(doc, target);
+        }
+    }
+
+    /** Only a default header/footer — no first-page/even-page variant. This is the common case (most real-world docx files) and is what regressed in DocxParser when it used List.of(...) on the possibly-null getFirstPageHeader()/getEvenPageHeader(). */
+    public static void docxWithDefaultHeaderFooterOnly(Path target, String bodyText, String headerText, String footerText) throws IOException {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText(bodyText);
+            XWPFHeaderFooterPolicy policy = doc.createHeaderFooterPolicy();
+            policy.createHeader(XWPFHeaderFooterPolicy.DEFAULT).createParagraph().createRun().setText(headerText);
+            policy.createFooter(XWPFHeaderFooterPolicy.DEFAULT).createParagraph().createRun().setText(footerText);
             save(doc, target);
         }
     }

@@ -65,6 +65,22 @@ class DocxParserTest {
     }
 
     @Test
+    void extractsDefaultOnlyHeaderAndFooterWithoutThrowing(@TempDir Path dir) throws Exception {
+        // Regression: docx with only a default header/footer (no first-page/even-page variant,
+        // the common case) NPE'd because getFirstPageHeader()/getEvenPageHeader() return null and
+        // DocxParser used to collect them with List.of(...), which rejects null elements.
+        Path file = dir.resolve("header-footer.docx");
+        FixtureBuilder.docxWithDefaultHeaderFooterOnly(file, "Body text.", "Confidential header", "Page footer");
+
+        ExtractionModel model = parser.parse(file);
+
+        TextFragment header = findByText(model, "Confidential header");
+        assertEquals(Channel.HEADER_FOOTER, header.getChannel());
+        TextFragment footer = findByText(model, "Page footer");
+        assertEquals(Channel.HEADER_FOOTER, footer.getChannel());
+    }
+
+    @Test
     void plainDocxHasNoLimitationsAndNormalVisibility(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("plain.docx");
         FixtureBuilder.docxPlain(file, "Nothing suspicious here.");

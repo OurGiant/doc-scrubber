@@ -113,9 +113,15 @@ public final class MainWindow extends JFrame {
         }
         viewMenu.add(themeMenu);
 
+        JMenu helpMenu = new JMenu("Help");
+        JMenuItem viewLogs = new JMenuItem("View Logs...");
+        viewLogs.addActionListener(e -> new LogViewerDialog(this).setVisible(true));
+        helpMenu.add(viewLogs);
+
         menuBar.add(fileMenu);
         menuBar.add(rulesMenu);
         menuBar.add(viewMenu);
+        menuBar.add(helpMenu);
         return menuBar;
     }
 

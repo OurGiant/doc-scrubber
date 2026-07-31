@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -189,12 +190,12 @@ public final class DocxParser implements DocumentParser {
         if (policy == null) {
             return;
         }
-        for (XWPFHeader header : List.of(policy.getDefaultHeader(), policy.getFirstPageHeader(), policy.getEvenPageHeader())) {
+        for (XWPFHeader header : Arrays.asList(policy.getDefaultHeader(), policy.getFirstPageHeader(), policy.getEvenPageHeader())) {
             if (header != null) {
                 extractParagraphs(header.getParagraphs(), Channel.HEADER_FOOTER, out);
             }
         }
-        for (XWPFFooter footer : List.of(policy.getDefaultFooter(), policy.getFirstPageFooter(), policy.getEvenPageFooter())) {
+        for (XWPFFooter footer : Arrays.asList(policy.getDefaultFooter(), policy.getFirstPageFooter(), policy.getEvenPageFooter())) {
             if (footer != null) {
                 extractParagraphs(footer.getParagraphs(), Channel.HEADER_FOOTER, out);
             }
