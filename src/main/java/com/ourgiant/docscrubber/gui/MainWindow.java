@@ -61,6 +61,10 @@ public final class MainWindow extends JFrame {
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, queuePanel, resultsPanel);
         split.setDividerLocation(320);
+        // Non-continuous layout (the Swing default) only paints an XOR outline while dragging and
+        // resizes on release, which reads as "the drag did nothing" until the exact moment the
+        // mouse button comes up. Live-resize instead so the panel visibly follows the cursor.
+        split.setContinuousLayout(true);
 
         statusBar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
 

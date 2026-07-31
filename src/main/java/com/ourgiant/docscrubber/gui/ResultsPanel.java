@@ -73,6 +73,7 @@ final class ResultsPanel extends JPanel {
         JSplitPane tableAndDetail = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
             new JScrollPane(table), new JScrollPane(detailArea));
         tableAndDetail.setResizeWeight(0.7);
+        tableAndDetail.setContinuousLayout(true);
 
         add(topPanel, BorderLayout.NORTH);
         add(tableAndDetail, BorderLayout.CENTER);
@@ -95,6 +96,7 @@ final class ResultsPanel extends JPanel {
         JSplitPane tableAndDetail = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
             new JScrollPane(table), new JScrollPane(detailArea));
         tableAndDetail.setResizeWeight(0.7);
+        tableAndDetail.setContinuousLayout(true);
         add(topPanel, BorderLayout.NORTH);
         add(tableAndDetail, BorderLayout.CENTER);
 
