@@ -7,8 +7,8 @@ import com.formdev.flatlaf.extras.FlatAnimatedLafChange;
 import com.formdev.flatlaf.intellijthemes.FlatArcDarkOrangeIJTheme;
 import com.formdev.flatlaf.intellijthemes.FlatOneDarkIJTheme;
 import com.formdev.flatlaf.intellijthemes.FlatSolarizedDarkIJTheme;
-import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubDarkIJTheme;
-import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatGitHubIJTheme;
+import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTGitHubDarkIJTheme;
+import com.formdev.flatlaf.intellijthemes.materialthemeuilite.FlatMTGitHubIJTheme;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +25,8 @@ public class ThemeManager {
 
     static {
         AVAILABLE_THEMES.put("Flat Light", new ThemeInfo(FlatLightLaf.class.getName(), true));
-        AVAILABLE_THEMES.put("GitHub Light", new ThemeInfo(FlatGitHubIJTheme.class.getName(), true));
-        AVAILABLE_THEMES.put("GitHub Dark", new ThemeInfo(FlatGitHubDarkIJTheme.class.getName(), true));
+        AVAILABLE_THEMES.put("GitHub Light", new ThemeInfo(FlatMTGitHubIJTheme.class.getName(), true));
+        AVAILABLE_THEMES.put("GitHub Dark", new ThemeInfo(FlatMTGitHubDarkIJTheme.class.getName(), true));
         AVAILABLE_THEMES.put("Flat Dark", new ThemeInfo(FlatDarkLaf.class.getName(), true));
         AVAILABLE_THEMES.put("Darcula", new ThemeInfo(FlatDarculaLaf.class.getName(), true));
         AVAILABLE_THEMES.put("One Dark", new ThemeInfo(FlatOneDarkIJTheme.class.getName(), true));

@@ -63,7 +63,9 @@ com.ourgiant.docscrubber
 
 ## Status
 
-1.0.0: parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation. Batch-mode UI polish is planned for a later release.
+1.0.0 shipped parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation.
+
+1.1.0 adds JSON/YAML/XML parsing, evasion-resistant content-rule matching (Unicode normalization plus zero-width/comment stripping), density-aware scoring (repeated-hit capping), embedded-object/attachment reporting, a hardened ReDoS timeout and max-file-size limit, and [RULES_AND_SCORING.md](RULES_AND_SCORING.md) documenting the rules engine and scoring in full. Batch-mode UI polish is planned for a later release.
 
 ## Scope
 
