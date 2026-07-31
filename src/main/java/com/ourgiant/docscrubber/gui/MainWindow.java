@@ -68,6 +68,7 @@ public final class MainWindow extends JFrame {
         queuePanel.setOnFileAdded(this::scanAsync);
         queuePanel.setOnSelectionChanged(this::onSelectionChanged);
         queuePanel.setStatusResolver(this::statusFor);
+        resultsPanel.setRulesSummaryResolver(this::rulesSummaryText);
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, queuePanel, resultsPanel);
         split.setDividerLocation(320);
@@ -202,6 +203,9 @@ public final class MainWindow extends JFrame {
             if (rulesWindow != null) {
                 rulesWindow.refresh(currentRuleSet, currentRulesPath);
             }
+            if (selectedFile == null) {
+                resultsPanel.showEmptyState();
+            }
 
             // Existing results were scored against the previous ruleset; keep them visible but
             // stale results would be misleading, so re-scan everything against the new rules.
@@ -227,9 +231,13 @@ public final class MainWindow extends JFrame {
     }
 
     private void updateStatusBar() {
+        statusBar.setText(rulesSummaryText());
+    }
+
+    private String rulesSummaryText() {
         String rulesLabel = currentRulesPath == null ? "bundled default" : currentRulesPath.toString();
         int count = currentRuleSet == null ? 0 : currentRuleSet.getRules().size();
-        statusBar.setText("Rules: " + rulesLabel + "  —  " + count + " rules loaded");
+        return "Rules: " + rulesLabel + "  —  " + count + " rules loaded";
     }
 
     /**

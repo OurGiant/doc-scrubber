@@ -1,6 +1,7 @@
 package com.ourgiant.docscrubber.gui;
 
 import com.ourgiant.docscrubber.DocumentScanner.ScanResult;
+import com.ourgiant.docscrubber.ScanLimits;
 import com.ourgiant.docscrubber.engine.Finding;
 import com.ourgiant.docscrubber.model.DocumentFormat;
 import com.ourgiant.docscrubber.rules.Severity;
@@ -11,6 +12,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Verdict banner, honest-limitations notice (always shown for PDFs — see
@@ -27,7 +29,8 @@ final class ResultsPanel extends JPanel {
     private final FindingsTableModel tableModel = new FindingsTableModel();
     private final JTable table = new JTable(tableModel);
     private final JTextArea detailArea = new JTextArea();
-    private final JLabel emptyLabel = new JLabel("Add a document and scan it to see results here.", SwingConstants.CENTER);
+    private final JLabel emptyLabel = new JLabel(" ", SwingConstants.CENTER);
+    private Supplier<String> rulesSummaryResolver = () -> "";
 
     ResultsPanel() {
         super(new BorderLayout());
@@ -81,11 +84,32 @@ final class ResultsPanel extends JPanel {
         showEmptyState();
     }
 
+    /** Called once by {@code MainWindow} so the empty state can show live rule-count/source text without polling. */
+    void setRulesSummaryResolver(Supplier<String> resolver) {
+        this.rulesSummaryResolver = resolver;
+    }
+
     void showEmptyState() {
         removeAll();
+        emptyLabel.setText(emptyStateHtml());
         add(emptyLabel, BorderLayout.CENTER);
         revalidate();
         repaint();
+    }
+
+    private String emptyStateHtml() {
+        return "<html><body style='text-align:center; font-family:sans-serif; padding:24px;'>"
+            + "<h2 style='margin-bottom:4px;'>DocScrubber</h2>"
+            + "<p style='color:#666; margin-top:0;'>Scans documents for prompt-injection &quot;poison "
+            + "pills&quot; hidden from human readers but meant for AI tools.</p>"
+            + "<p style='text-align:left; display:inline-block; margin-top:16px;'>"
+            + "<b>Getting started</b><br>"
+            + "1.&nbsp;File &rarr; Add Files... to queue a document<br>"
+            + "2.&nbsp;Select it in the list to see its scan result here<br>"
+            + "3.&nbsp;Rules &rarr; View Rules... to see what's being checked for</p>"
+            + "<p style='color:#888; font-size:11px; margin-top:20px;'>" + rulesSummaryResolver.get()
+            + "<br>Files over " + ScanLimits.describeMaxFileSize() + " are skipped for safety.</p>"
+            + "</body></html>";
     }
 
     void show(ScanResult result) {
