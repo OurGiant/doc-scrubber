@@ -173,6 +173,9 @@ final class ResultsPanel extends JPanel {
             case DOCX -> "docx";
             case MARKDOWN -> "Markdown";
             case PLAIN_TEXT -> "text";
+            case JSON -> "JSON";
+            case YAML -> "YAML";
+            case XML -> "XML";
         };
     }
 

@@ -6,7 +6,7 @@
 [![Java 24](https://img.shields.io/badge/Java-24-orange?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)](#building-and-running)
 
-A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, markdown) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
+A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, Markdown, JSON, YAML, XML) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
 
 DocScrubber is a defensive pre-flight scanner: it scores a document's risk and shows exactly what was found and where, so a human can decide what happens next. It never executes, renders, fetches, or follows anything found inside a scanned document — and it never produces a modified or "cleaned" copy of one either (see [Scope](#scope) below).
 
@@ -16,7 +16,7 @@ Real-world prompt-injection payloads hide behind formatting a human reader never
 
 ## Features
 
-- **Multi-format parsing**: plain text, Markdown, docx (via Apache POI), PDF (via Apache PDFBox)
+- **Multi-format parsing**: plain text, Markdown, docx (via Apache POI), PDF (via Apache PDFBox), JSON, YAML, and XML (string values, and — for YAML/XML — comments, since both have a comment syntax a downstream parser never sees)
 - **Two-layer rules engine**: content rules (regex, keyword lists, Unicode character classes) and structural detectors (low-contrast text, tiny fonts, hidden runs, invisible PDF render modes, off-page text, suspicious channels), evaluated together with score-multiplying combos when both fire on the same fragment
 - **Declarative `rules.json`**: rule changes never require a code change; the bundled ruleset ships with 33 seed rules covering common injection patterns, and the file is schema-validated on load with a clear GUI error on failure
 - **Channel-aware**: distinguishes body text from headers/footers, comments, tracked-change deletions, footnotes, metadata/custom properties, alt-text, and hyperlink targets — places a casual read-through never checks
@@ -27,7 +27,9 @@ Real-world prompt-injection payloads hide behind formatting a human reader never
 
 ## Tech stack
 
-Java 24, Maven, Swing + FlatLaf, Apache PDFBox, Apache POI (XWPF), Jackson, JUnit 5. No dynamic code loading — rules are data, never code. Document parsing, rule evaluation, and scoring are fully offline; the only network call anywhere in the app is a startup/Help > About check against GitHub's releases API (see `UpdateChecker`), which never touches document content and can be observed failing closed (silently, with no scan impact) on an offline machine.
+Java 24, Maven, Swing + FlatLaf, Apache PDFBox, Apache POI (XWPF), Jackson (including `jackson-dataformat-yaml`), the JDK's built-in XML DOM parser, JUnit 5. No dynamic code loading — rules are data, never code. Document parsing, rule evaluation, and scoring are fully offline; the only network call anywhere in the app is a startup/Help > About check against GitHub's releases API (see `UpdateChecker`), which never touches document content and can be observed failing closed (silently, with no scan impact) on an offline machine.
+
+XML parsing is hardened against XXE (external entity injection): DOCTYPE declarations are rejected outright and external entity/DTD resolution is disabled, since this parser exists specifically to handle untrusted, potentially adversarial input.
 
 ## Building and running
 
@@ -55,7 +57,7 @@ com.ourgiant.docscrubber
 
 ## Testing
 
-`src/test/java/.../fixtures/FixtureBuilder.java` programmatically generates docx/PDF fixtures for each payload class (white-on-white text, vanish runs, invisible PDF render mode, zero-width Unicode smuggling, metadata payloads, off-page text) — no hand-crafted binaries are committed to the repo.
+`src/test/java/.../fixtures/FixtureBuilder.java` programmatically generates docx/PDF/JSON/YAML/XML fixtures for each payload class (white-on-white text, vanish runs, invisible PDF render mode, zero-width Unicode smuggling, metadata payloads, off-page text, nested/comment payloads, an XXE attempt) — no hand-crafted binaries are committed to the repo.
 
 ## Status
 

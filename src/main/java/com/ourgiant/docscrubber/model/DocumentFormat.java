@@ -4,5 +4,8 @@ public enum DocumentFormat {
     PLAIN_TEXT,
     MARKDOWN,
     DOCX,
-    PDF
+    PDF,
+    JSON,
+    YAML,
+    XML
 }

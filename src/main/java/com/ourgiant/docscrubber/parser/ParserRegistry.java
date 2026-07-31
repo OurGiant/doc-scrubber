@@ -12,7 +12,7 @@ public final class ParserRegistry {
     private final List<DocumentParser> parsers;
 
     public ParserRegistry() {
-        this(List.of(new PlainTextParser(), new DocxParser(), new PdfParser()));
+        this(List.of(new PlainTextParser(), new DocxParser(), new PdfParser(), new JsonParser(), new YamlParser(), new XmlParser()));
     }
 
     public ParserRegistry(List<DocumentParser> parsers) {
