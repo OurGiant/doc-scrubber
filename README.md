@@ -52,7 +52,7 @@ com.ourgiant.docscrubber
 
 ## Status
 
-This is a Phase 1 build: parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation. Batch-mode UI polish is planned for a later phase.
+1.0.0: parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation. Batch-mode UI polish is planned for a later release.
 
 ## Scope
 
