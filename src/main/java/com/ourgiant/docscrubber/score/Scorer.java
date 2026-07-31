@@ -36,6 +36,10 @@ public final class Scorer {
     }
 
     public ScoreReport score(List<Finding> findings, RuleSet ruleSet, List<String> limitations) {
+        return score(findings, ruleSet, limitations, 0);
+    }
+
+    public ScoreReport score(List<Finding> findings, RuleSet ruleSet, List<String> limitations, int embeddedObjectCount) {
         Map<Integer, Double> multiplierByFragment = comboMultipliers(findings, ruleSet.getCombos());
 
         Map<RuleChannelKey, List<Double>> contributionsByRuleChannel = new HashMap<>();
@@ -58,7 +62,7 @@ public final class Scorer {
 
         int cappedScore = (int) Math.round(Math.min(MAX_SCORE, rawScore));
         Verdict verdict = verdictFor(cappedScore, ruleSet.getVerdictThresholds());
-        return new ScoreReport(cappedScore, verdict, findings, limitations);
+        return new ScoreReport(cappedScore, verdict, findings, limitations, embeddedObjectCount);
     }
 
     /** For each fragment index, the product of every combo's multiplier whose required tags are all present among that fragment's findings. */

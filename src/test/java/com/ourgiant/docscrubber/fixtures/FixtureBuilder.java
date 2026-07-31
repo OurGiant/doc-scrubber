@@ -1,24 +1,38 @@
 package com.ourgiant.docscrubber.fixtures;
 
+import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.openxml4j.opc.PackagePart;
+import org.apache.poi.openxml4j.opc.PackagePartName;
+import org.apache.poi.openxml4j.opc.PackagingURIHelper;
+import org.apache.poi.openxml4j.opc.TargetMode;
 import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
+import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
+import org.apache.pdfbox.pdmodel.PDEmbeddedFilesNameTreeNode;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
 
 import java.awt.Color;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Programmatically builds malicious/benign test documents so fixtures never need to be
@@ -111,6 +125,31 @@ public final class FixtureBuilder {
                 case "description" -> core.setDescription(payload);
                 case "keywords" -> core.setKeywords(payload);
                 default -> throw new IllegalArgumentException("Unsupported core property: " + field);
+            }
+            save(doc, target);
+        }
+    }
+
+    /**
+     * Visible body text plus {@code count} embedded OLE-object package parts, wired up via a raw OPC
+     * relationship of type ".../relationships/oleObject" — POI's XWPF usermodel API has no
+     * convenience method for creating these (only for reading them back via
+     * {@code getAllEmbeddedParts()}), so this drops to the underlying {@code OPCPackage} directly.
+     */
+    public static void docxWithEmbeddedObject(Path target, String bodyText, int count) throws IOException, InvalidFormatException {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText(bodyText);
+
+            PackagePart documentPart = doc.getPackagePart();
+            OPCPackage pkg = documentPart.getPackage();
+            for (int i = 1; i <= count; i++) {
+                PackagePartName partName = PackagingURIHelper.createPartName("/word/embeddings/oleObject" + i + ".bin");
+                PackagePart embeddedPart = pkg.createPart(partName, "application/vnd.openxmlformats-officedocument.oleObject");
+                try (OutputStream os = embeddedPart.getOutputStream()) {
+                    os.write("fixture OLE object bytes".getBytes(StandardCharsets.UTF_8));
+                }
+                documentPart.addRelationship(partName, TargetMode.INTERNAL,
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject", "rIdOle" + i);
             }
             save(doc, target);
         }
@@ -248,6 +287,44 @@ public final class FixtureBuilder {
                 case "keywords" -> info.setKeywords(payload);
                 default -> throw new IllegalArgumentException("Unsupported metadata field: " + field);
             }
+            doc.save(target.toFile());
+        }
+    }
+
+    /** Visible body text plus {@code count} embedded file attachments in the document-level embedded-files name tree (the standard PDF "Attachments" panel). */
+    public static void pdfWithEmbeddedFile(Path target, String bodyText, int count) throws IOException {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.LETTER);
+            doc.addPage(page);
+            PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.beginText();
+                cs.setFont(font, 12);
+                cs.newLineAtOffset(72, 700);
+                cs.showText(bodyText);
+                cs.endText();
+            }
+
+            Map<String, PDComplexFileSpecification> embeddedFiles = new HashMap<>();
+            for (int i = 1; i <= count; i++) {
+                byte[] data = ("fixture attachment bytes " + i).getBytes(StandardCharsets.UTF_8);
+                PDEmbeddedFile embeddedFile = new PDEmbeddedFile(doc, new ByteArrayInputStream(data));
+                embeddedFile.setSubtype("text/plain");
+                embeddedFile.setSize(data.length);
+
+                PDComplexFileSpecification fileSpec = new PDComplexFileSpecification();
+                fileSpec.setFile("attachment" + i + ".txt");
+                fileSpec.setEmbeddedFile(embeddedFile);
+                embeddedFiles.put("attachment" + i + ".txt", fileSpec);
+            }
+
+            PDDocumentCatalog catalog = doc.getDocumentCatalog();
+            PDDocumentNameDictionary namesDictionary = new PDDocumentNameDictionary(catalog);
+            PDEmbeddedFilesNameTreeNode embeddedFilesTree = new PDEmbeddedFilesNameTreeNode();
+            embeddedFilesTree.setNames(embeddedFiles);
+            namesDictionary.setEmbeddedFiles(embeddedFilesTree);
+            catalog.setNames(namesDictionary);
+
             doc.save(target.toFile());
         }
     }

@@ -81,6 +81,28 @@ class DocxParserTest {
     }
 
     @Test
+    void countsEmbeddedObjectsAndAddsALimitationNoticeButExtractsNoTextFromThem(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded.docx");
+        FixtureBuilder.docxWithEmbeddedObject(file, "Ordinary visible document body.", 2);
+
+        ExtractionModel model = parser.parse(file);
+
+        assertEquals(2, model.getEmbeddedObjectCount());
+        assertTrue(model.getLimitations().stream().anyMatch(l -> l.contains("2 embedded object")),
+            "Expected a limitations entry mentioning the embedded object count: " + model.getLimitations());
+    }
+
+    @Test
+    void plainDocxHasNoEmbeddedObjects(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("plain-no-embed.docx");
+        FixtureBuilder.docxPlain(file, "Nothing suspicious here.");
+
+        ExtractionModel model = parser.parse(file);
+
+        assertEquals(0, model.getEmbeddedObjectCount());
+    }
+
+    @Test
     void plainDocxHasNoLimitationsAndNormalVisibility(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("plain.docx");
         FixtureBuilder.docxPlain(file, "Nothing suspicious here.");

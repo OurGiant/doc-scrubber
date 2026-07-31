@@ -23,6 +23,7 @@ public final class JsonReportWriter {
         root.put("score", report.getScore());
         root.put("verdict", report.getVerdict().name());
         root.put("verdictDisplay", report.getVerdict().display());
+        root.put("embeddedObjectCount", report.getEmbeddedObjectCount());
 
         ArrayNode limitations = root.putArray("limitations");
         report.getLimitations().forEach(limitations::add);
