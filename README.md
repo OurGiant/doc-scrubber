@@ -20,7 +20,7 @@ Real-world prompt-injection payloads hide behind formatting a human reader never
 
 ## Tech stack
 
-Java 24, Maven, Swing + FlatLaf, Apache PDFBox, Apache POI (XWPF), Jackson, JUnit 5. No network access at runtime, no dynamic code loading — rules are data, never code.
+Java 24, Maven, Swing + FlatLaf, Apache PDFBox, Apache POI (XWPF), Jackson, JUnit 5. No dynamic code loading — rules are data, never code. Document parsing, rule evaluation, and scoring are fully offline; the only network call anywhere in the app is a startup/Help > About check against GitHub's releases API (see `UpdateChecker`), which never touches document content and can be observed failing closed (silently, with no scan impact) on an offline machine.
 
 ## Building and running
 

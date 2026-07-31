@@ -1,5 +1,6 @@
 package com.ourgiant.docscrubber.gui;
 
+import com.ourgiant.docscrubber.AppPreferences;
 import com.ourgiant.docscrubber.DocumentScanner;
 import com.ourgiant.docscrubber.DocumentScanner.ScanResult;
 import com.ourgiant.docscrubber.ThemeManager;
@@ -13,6 +14,8 @@ import com.ourgiant.docscrubber.rules.RulesValidator;
 import com.ourgiant.docscrubber.rules.ValidationResult;
 import com.ourgiant.docscrubber.rules.detector.DetectorRegistry;
 import com.ourgiant.docscrubber.score.Scorer;
+import com.ourgiant.docscrubber.util.AppVersion;
+import com.ourgiant.docscrubber.util.UpdateChecker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MainWindow extends JFrame {
@@ -34,6 +38,8 @@ public final class MainWindow extends JFrame {
     private final RulesValidator rulesValidator = new RulesValidator(detectorRegistry);
     private final ParserRegistry parserRegistry = new ParserRegistry();
     private final DocumentScanner scanner = new DocumentScanner(parserRegistry, new RulesEngine(detectorRegistry), new Scorer());
+
+    private final AppPreferences preferences = new AppPreferences();
 
     private final Map<Path, ScanResult> results = new ConcurrentHashMap<>();
     private final Map<Path, String> errors = new ConcurrentHashMap<>();
@@ -73,6 +79,7 @@ public final class MainWindow extends JFrame {
         add(statusBar, BorderLayout.SOUTH);
 
         loadRules(null);
+        checkForUpdateAndNotifyIfNewer();
     }
 
     private void setAppIcon() {
@@ -121,6 +128,10 @@ public final class MainWindow extends JFrame {
         JMenuItem viewLogs = new JMenuItem("View Logs...");
         viewLogs.addActionListener(e -> new LogViewerDialog(this).setVisible(true));
         helpMenu.add(viewLogs);
+        helpMenu.addSeparator();
+        JMenuItem about = new JMenuItem("About");
+        about.addActionListener(e -> new AboutDialog(this).setVisible(true));
+        helpMenu.add(about);
 
         menuBar.add(fileMenu);
         menuBar.add(rulesMenu);
@@ -180,6 +191,46 @@ public final class MainWindow extends JFrame {
         String rulesLabel = currentRulesPath == null ? "bundled default" : currentRulesPath.toString();
         int count = currentRuleSet == null ? 0 : currentRuleSet.getRules().size();
         statusBar.setText("Rules: " + rulesLabel + "  —  " + count + " rules loaded");
+    }
+
+    /**
+     * Silent unless there's actually something to say: no UI at all if up to date or the check
+     * fails, and only once per newly-released version (not once per launch) if there's an
+     * update — otherwise a known update sitting unapplied would pop this on every single
+     * startup. A user can still always check manually via Help > About regardless of this
+     * state. This is the app's only outbound network call.
+     */
+    private void checkForUpdateAndNotifyIfNewer() {
+        SwingWorker<Optional<UpdateChecker.ReleaseInfo>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Optional<UpdateChecker.ReleaseInfo> doInBackground() {
+                return UpdateChecker.fetchLatestRelease();
+            }
+
+            @Override
+            protected void done() {
+                Optional<UpdateChecker.ReleaseInfo> release;
+                try {
+                    release = get();
+                } catch (Exception e) {
+                    logger.warn("Silent startup update check failed", e);
+                    return;
+                }
+                if (release.isEmpty()) {
+                    return;
+                }
+                UpdateChecker.ReleaseInfo info = release.get();
+                if (!UpdateChecker.isNewerVersion(info.version(), AppVersion.resolve())) {
+                    return;
+                }
+                if (info.version().equals(preferences.getLastNotifiedUpdateVersion())) {
+                    return;
+                }
+                preferences.setLastNotifiedUpdateVersion(info.version());
+                new AboutDialog(MainWindow.this, info).setVisible(true);
+            }
+        };
+        worker.execute();
     }
 
     private void scanAsync(Path file) {
