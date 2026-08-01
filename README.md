@@ -55,7 +55,7 @@ com.ourgiant.docscrubber
 └── gui/         Swing UI
 ```
 
-`rules.json` (bundled at `src/main/resources/rules/rules.json`) is read at startup; a different file can be loaded from the GUI's Rules menu. See [RULES_AND_SCORING.md](RULES_AND_SCORING.md) for the full schema reference, the bundled ruleset, and how scoring works — or the class docs on `Rule`, `RuleSet`, and `RulesValidator` for the code-level detail.
+`rules.json` (bundled at `src/main/resources/rules/rules.json`) is read at startup; a different file can be loaded from the GUI's Rules menu. See [RULES_AND_SCORING.md](RULES_AND_SCORING.md) for the full schema reference, the bundled ruleset, and how scoring works — or the class docs on `Rule`, `RuleSet`, and `RulesValidator` for the code-level detail. See [SPEC.md](SPEC.md) for the design/decision log — *why* things work this way, not just how.
 
 ## Testing
 
