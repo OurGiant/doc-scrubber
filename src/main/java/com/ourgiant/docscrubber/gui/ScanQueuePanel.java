@@ -13,10 +13,13 @@ import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDropEvent;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /** Drag-and-drop + file-chooser queue of documents to scan. Scanning itself and status display are driven by {@link MainWindow}; this panel only manages membership and selection. */
 final class ScanQueuePanel extends JPanel {
@@ -42,11 +45,11 @@ final class ScanQueuePanel extends JPanel {
             }
         });
 
-        JLabel dropHint = new JLabel("Drag files here, or use Add Files...", SwingConstants.CENTER);
+        JLabel dropHint = new JLabel("Drag files or folders here, or use Add Files/Folder...", SwingConstants.CENTER);
         dropHint.setForeground(Color.GRAY);
         dropHint.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
 
-        JButton addButton = new JButton("Add Files...");
+        JButton addButton = new JButton("Add Files/Folder...");
         addButton.addActionListener(e -> chooseFiles());
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> removeSelected());
@@ -85,12 +88,13 @@ final class ScanQueuePanel extends JPanel {
     void chooseFiles() {
         JFileChooser chooser = new JFileChooser();
         chooser.setMultiSelectionEnabled(true);
+        chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
         chooser.setFileFilter(new FileNameExtensionFilter("Supported documents (txt, md, docx, pdf, json, yaml, xml)",
             "txt", "md", "markdown", "docx", "pdf", "json", "yaml", "yml", "xml"));
         int result = chooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             for (File f : chooser.getSelectedFiles()) {
-                addFile(f.toPath());
+                addPath(f.toPath());
             }
         }
     }
@@ -105,11 +109,50 @@ final class ScanQueuePanel extends JPanel {
         listModel.clear();
     }
 
+    /** Dispatches a chosen or dropped path: a single file goes through the usual supported-type check (with a warning dialog if not), a folder is walked recursively in the background and only its supported files are added silently — a folder can easily contain hundreds of irrelevant files, and a per-file warning popup for each would be unusable. */
+    private void addPath(Path path) {
+        if (Files.isDirectory(path)) {
+            addFolderAsync(path);
+        } else {
+            addFile(path);
+        }
+    }
+
     private void addFile(Path path) {
         if (!parserRegistry.isSupported(path)) {
             JOptionPane.showMessageDialog(this, "Unsupported file type: " + path.getFileName(), "Unsupported file", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        addSupportedFile(path);
+    }
+
+    private void addFolderAsync(Path dir) {
+        new SwingWorker<List<Path>, Void>() {
+            @Override
+            protected List<Path> doInBackground() throws IOException {
+                try (Stream<Path> walk = Files.walk(dir)) {
+                    return walk.filter(Files::isRegularFile)
+                        .filter(parserRegistry::isSupported)
+                        .sorted(Comparator.naturalOrder())
+                        .toList();
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get().forEach(ScanQueuePanel.this::addSupportedFile);
+                } catch (Exception e) {
+                    Throwable cause = e.getCause() != null ? e.getCause() : e;
+                    JOptionPane.showMessageDialog(ScanQueuePanel.this,
+                        "Could not read folder \"" + dir.getFileName() + "\": " + cause.getMessage(),
+                        "Folder read error", JOptionPane.WARNING_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    private void addSupportedFile(Path path) {
         if (listModel.contains(path)) {
             list.setSelectedValue(path, true);
             return;
@@ -129,7 +172,7 @@ final class ScanQueuePanel extends JPanel {
                     @SuppressWarnings("unchecked")
                     List<File> files = (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
                     for (File f : files) {
-                        addFile(f.toPath());
+                        addPath(f.toPath());
                     }
                     event.dropComplete(true);
                 } else {

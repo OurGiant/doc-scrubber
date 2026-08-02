@@ -98,7 +98,7 @@ public final class MainWindow extends JFrame {
         JMenuBar menuBar = new JMenuBar();
 
         JMenu fileMenu = new JMenu("File");
-        JMenuItem addFiles = new JMenuItem("Add Files...");
+        JMenuItem addFiles = new JMenuItem("Add Files/Folder...");
         addFiles.addActionListener(e -> queuePanel.chooseFiles());
         JMenuItem exportReport = new JMenuItem("Export Report...");
         exportReport.addActionListener(e -> exportReport());
