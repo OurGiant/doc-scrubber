@@ -469,6 +469,34 @@
       "remediation": "flag-only",
       "enabled": false,
       "tags": ["hidden-text", "not-implemented"]
+    },
+    {
+      "id": "STRUCT-008A",
+      "name": "Executable signature in embedded object",
+      "family": "structural",
+      "type": "detector",
+      "detector": "embeddedExecutableSignature",
+      "params": {},
+      "channels": ["embedded_object"],
+      "severity": "critical",
+      "description": "An embedded object's raw stream begins with a Windows/DOS (MZ) or Linux (ELF) executable signature. Header bytes only — the stream is never parsed further or executed.",
+      "remediation": "remove",
+      "enabled": true,
+      "tags": ["embedded-object", "executable"]
+    },
+    {
+      "id": "STRUCT-008B",
+      "name": "Macro-storage stream in embedded object",
+      "family": "structural",
+      "type": "detector",
+      "detector": "embeddedMacroStorage",
+      "params": {},
+      "channels": ["embedded_object"],
+      "severity": "high",
+      "description": "An embedded OLE compound-file object contains a macro-storage entry (_VBA_PROJECT, VBA, or Macros). Only the directory listing is inspected — never the macro source itself.",
+      "remediation": "remove",
+      "enabled": true,
+      "tags": ["embedded-object", "macro"]
     }
   ]
 }

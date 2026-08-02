@@ -17,6 +17,8 @@ public final class DetectorRegistry {
         register(new OffPageTextDetector());
         register(new SuspiciousChannelDetector());
         register(new OverlappedTextDetector());
+        register(new EmbeddedExecutableSignatureDetector());
+        register(new EmbeddedMacroStorageDetector());
     }
 
     private void register(Detector detector) {
