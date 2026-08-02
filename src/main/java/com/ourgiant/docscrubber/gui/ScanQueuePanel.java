@@ -50,10 +50,13 @@ final class ScanQueuePanel extends JPanel {
         addButton.addActionListener(e -> chooseFiles());
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> removeSelected());
+        JButton removeAllButton = new JButton("Remove All");
+        removeAllButton.addActionListener(e -> removeAllFiles());
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         buttons.add(addButton);
         buttons.add(removeButton);
+        buttons.add(removeAllButton);
 
         add(dropHint, BorderLayout.NORTH);
         add(new JScrollPane(list), BorderLayout.CENTER);
@@ -96,6 +99,10 @@ final class ScanQueuePanel extends JPanel {
         for (Path p : list.getSelectedValuesList()) {
             listModel.removeElement(p);
         }
+    }
+
+    private void removeAllFiles() {
+        listModel.clear();
     }
 
     private void addFile(Path path) {
