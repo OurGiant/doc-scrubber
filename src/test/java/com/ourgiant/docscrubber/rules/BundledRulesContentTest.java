@@ -187,6 +187,39 @@ class BundledRulesContentTest {
         assertFired("STRUCT-006B", altText, Channel.ALT_TEXT);
     }
 
+    @Test
+    void struct008aFiresOnEmbeddedExecutableSignature() {
+        VisibilityAttributes visibility = VisibilityAttributes.builder()
+            .embeddedExecutableSignature("MZ / Windows-DOS executable")
+            .build();
+        TextFragment fragment = new TextFragment("Embedded object \"invoice.exe\" begins with an executable file signature (MZ / Windows-DOS executable)",
+            Channel.EMBEDDED_OBJECT, SourceLocation.field("Embedded object: invoice.exe"), visibility);
+
+        assertTrue(findingsForFragment(fragment).stream().anyMatch(f -> f.getRuleId().equals("STRUCT-008A")));
+    }
+
+    @Test
+    void struct008bFiresOnEmbeddedMacroStorage() {
+        VisibilityAttributes visibility = VisibilityAttributes.builder()
+            .embeddedMacroStorageNames(List.of("_VBA_PROJECT"))
+            .build();
+        TextFragment fragment = new TextFragment("Embedded object \"legacy.doc\" contains an OLE macro-storage stream (\"_VBA_PROJECT\")",
+            Channel.EMBEDDED_OBJECT, SourceLocation.field("Embedded object: legacy.doc"), visibility);
+
+        assertTrue(findingsForFragment(fragment).stream().anyMatch(f -> f.getRuleId().equals("STRUCT-008B")));
+    }
+
+    @Test
+    void struct008RulesDoNotFireOnAnOrdinaryEmbeddedObjectFragment() {
+        TextFragment fragment = new TextFragment("Embedded object \"data.txt\" begins with an executable file signature (never mind text pattern-matching)",
+            Channel.EMBEDDED_OBJECT, SourceLocation.field("Embedded object: data.txt"), VisibilityAttributes.builder().build());
+
+        List<Finding> findings = findingsForFragment(fragment);
+        assertFalse(findings.stream().anyMatch(f -> f.getRuleId().equals("STRUCT-008A")),
+            "STRUCT-008A must key off VisibilityAttributes, not text content, even when the text looks like a match");
+        assertFalse(findings.stream().anyMatch(f -> f.getRuleId().equals("STRUCT-008B")));
+    }
+
     private static String toFullWidth(String ascii) {
         StringBuilder sb = new StringBuilder();
         for (char c : ascii.toCharArray()) {
@@ -211,6 +244,10 @@ class BundledRulesContentTest {
 
     private List<Finding> findingsFor(String text, Channel channel) {
         TextFragment fragment = new TextFragment(text, channel, SourceLocation.paragraphRun(0, 0), VisibilityAttributes.builder().build());
+        return findingsForFragment(fragment);
+    }
+
+    private List<Finding> findingsForFragment(TextFragment fragment) {
         ExtractionModel model = new ExtractionModel(Path.of("x.docx"), DocumentFormat.DOCX, List.of(fragment), List.of());
         return engine.evaluate(model, ruleSet).findings();
     }

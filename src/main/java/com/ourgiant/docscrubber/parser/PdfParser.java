@@ -20,13 +20,17 @@ import org.apache.pdfbox.pdmodel.PDDocumentNameDictionary;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.common.filespecification.PDComplexFileSpecification;
+import org.apache.pdfbox.pdmodel.common.filespecification.PDEmbeddedFile;
 import org.apache.pdfbox.pdmodel.graphics.color.PDColor;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +62,8 @@ import java.util.Map;
  */
 public final class PdfParser implements DocumentParser {
 
+    private static final Logger logger = LoggerFactory.getLogger(PdfParser.class);
+
     private static final List<String> LIMITATIONS = List.of(
         "PDF background color is assumed white for contrast analysis; text hidden against a "
             + "non-white or image background may not be detected as low-contrast.",
@@ -83,7 +89,9 @@ public final class PdfParser implements DocumentParser {
             stripper.setEndPage(document.getNumberOfPages());
             stripper.getText(document);
 
-            embeddedObjectCount = countEmbeddedFiles(document);
+            Map<String, PDComplexFileSpecification> embeddedFiles = embeddedFiles(document);
+            embeddedObjectCount = embeddedFiles.size();
+            inspectEmbeddedFiles(embeddedFiles, fragments);
         }
 
         List<String> limitations = new ArrayList<>(LIMITATIONS);
@@ -94,14 +102,38 @@ public final class PdfParser implements DocumentParser {
         return new ExtractionModel(path, DocumentFormat.PDF, fragments, limitations, embeddedObjectCount);
     }
 
-    /** Counts the document-level embedded-files name tree (a PDF viewer's "Attachments" panel) — not page-level FileAttachment annotations or a Kids-structured name tree, which are rarer in practice. */
-    private int countEmbeddedFiles(PDDocument document) throws IOException {
+    /** The document-level embedded-files name tree (a PDF viewer's "Attachments" panel) — not page-level FileAttachment annotations or a Kids-structured name tree, which are rarer in practice. */
+    private Map<String, PDComplexFileSpecification> embeddedFiles(PDDocument document) throws IOException {
         PDDocumentNameDictionary names = document.getDocumentCatalog().getNames();
         if (names == null || names.getEmbeddedFiles() == null) {
-            return 0;
+            return Map.of();
         }
         Map<String, PDComplexFileSpecification> embeddedFiles = names.getEmbeddedFiles().getNames();
-        return embeddedFiles == null ? 0 : embeddedFiles.size();
+        return embeddedFiles == null ? Map.of() : embeddedFiles;
+    }
+
+    /** Bounded, best-effort structural inspection of each embedded file's raw bytes — see {@link EmbeddedStreamInspector}. A single unreadable embedded file is logged and skipped rather than failing the whole scan. */
+    private void inspectEmbeddedFiles(Map<String, PDComplexFileSpecification> embeddedFiles, List<TextFragment> out) {
+        for (Map.Entry<String, PDComplexFileSpecification> entry : embeddedFiles.entrySet()) {
+            String name = entry.getValue().getFilename() != null ? entry.getValue().getFilename() : entry.getKey();
+            PDEmbeddedFile embeddedFile = entry.getValue().getEmbeddedFile();
+            if (embeddedFile == null) {
+                continue;
+            }
+            try (InputStream in = embeddedFile.createInputStream()) {
+                EmbeddedStreamInspector.Signals signals = EmbeddedStreamInspector.inspect(in);
+                if (!signals.isEmpty()) {
+                    out.add(new TextFragment(EmbeddedStreamInspector.describe(name, signals), Channel.EMBEDDED_OBJECT,
+                        SourceLocation.field("Embedded object: " + name),
+                        VisibilityAttributes.builder()
+                            .embeddedExecutableSignature(signals.executableSignature())
+                            .embeddedMacroStorageNames(signals.macroStorageNames())
+                            .build()));
+                }
+            } catch (IOException e) {
+                logger.warn("Could not read embedded file \"{}\" for structural inspection: {}", name, e.getMessage());
+            }
+        }
     }
 
     private void extractMetadata(PDDocument document, List<TextFragment> out) {

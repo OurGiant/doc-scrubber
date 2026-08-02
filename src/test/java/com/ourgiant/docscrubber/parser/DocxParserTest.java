@@ -103,6 +103,45 @@ class DocxParserTest {
     }
 
     @Test
+    void flagsEmbeddedPartWithExecutableSignature(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded-exe.docx");
+        FixtureBuilder.docxWithEmbeddedExecutable(file, "Ordinary visible document body.");
+
+        ExtractionModel model = parser.parse(file);
+
+        List<TextFragment> embeddedObjectFragments = model.getFragments().stream()
+            .filter(f -> f.getChannel() == Channel.EMBEDDED_OBJECT)
+            .toList();
+        assertEquals(1, embeddedObjectFragments.size());
+        assertEquals("MZ / Windows-DOS executable", embeddedObjectFragments.get(0).getVisibility().getEmbeddedExecutableSignature());
+    }
+
+    @Test
+    void flagsEmbeddedOle2CompoundFileWithMacroStorage(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded-macro.docx");
+        FixtureBuilder.docxWithEmbeddedMacroStorage(file, "Ordinary visible document body.");
+
+        ExtractionModel model = parser.parse(file);
+
+        List<TextFragment> embeddedObjectFragments = model.getFragments().stream()
+            .filter(f -> f.getChannel() == Channel.EMBEDDED_OBJECT)
+            .toList();
+        assertEquals(1, embeddedObjectFragments.size());
+        assertTrue(embeddedObjectFragments.get(0).getVisibility().getEmbeddedMacroStorageNames().contains("_VBA_PROJECT"));
+    }
+
+    @Test
+    void ordinaryEmbeddedObjectIsNotFlaggedAsStructural(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded-plain.docx");
+        FixtureBuilder.docxWithEmbeddedObject(file, "Ordinary visible document body.", 1);
+
+        ExtractionModel model = parser.parse(file);
+
+        assertTrue(model.getFragments().stream().noneMatch(f -> f.getChannel() == Channel.EMBEDDED_OBJECT),
+            "A non-OLE2, non-executable embedded part should not trip the structural checks");
+    }
+
+    @Test
     void plainDocxHasNoLimitationsAndNormalVisibility(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("plain.docx");
         FixtureBuilder.docxPlain(file, "Nothing suspicious here.");
