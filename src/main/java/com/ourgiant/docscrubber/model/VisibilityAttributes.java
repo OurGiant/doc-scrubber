@@ -1,11 +1,15 @@
 package com.ourgiant.docscrubber.model;
 
 import java.awt.Color;
+import java.util.List;
 
 /**
- * Everything a structural detector needs to judge whether a fragment of text is actually
- * visible to a human reader. Fields are nullable/Optional-shaped on purpose: a plain-text
- * parser can only ever populate {@code hidden}, while PDF and docx populate progressively more.
+ * Everything a structural detector needs to judge a fragment without reading its text: mostly
+ * whether it's actually visible to a human reader, plus a couple of non-visual structural facts
+ * (embedded-object stream signals) that piggyback on the same "parser populates, detector reads"
+ * shape rather than earning a parallel bag of their own. Fields are nullable/Optional-shaped on
+ * purpose: a plain-text parser can only ever populate {@code hidden}, while PDF and docx populate
+ * progressively more.
  *
  * <p>{@code backgroundHeuristic} matters beyond documentation: PDFBox exposes the fill color an
  * operator used, not what a renderer would composite on screen. Background color here is
@@ -24,6 +28,8 @@ public final class VisibilityAttributes {
     private final Boolean onPage;
     private final Double positionX;
     private final Double positionY;
+    private final String embeddedExecutableSignature;
+    private final List<String> embeddedMacroStorageNames;
 
     private VisibilityAttributes(Builder b) {
         this.fontColor = b.fontColor;
@@ -35,6 +41,8 @@ public final class VisibilityAttributes {
         this.onPage = b.onPage;
         this.positionX = b.positionX;
         this.positionY = b.positionY;
+        this.embeddedExecutableSignature = b.embeddedExecutableSignature;
+        this.embeddedMacroStorageNames = b.embeddedMacroStorageNames;
     }
 
     public Color getFontColor() {
@@ -74,6 +82,16 @@ public final class VisibilityAttributes {
 
     public Double getPositionY() {
         return positionY;
+    }
+
+    /** Non-null when this fragment's embedded-object stream begins with a known executable magic-byte signature, e.g. {@code "MZ / Windows-DOS executable"}. */
+    public String getEmbeddedExecutableSignature() {
+        return embeddedExecutableSignature;
+    }
+
+    /** Names of OLE compound-file macro-storage entries (e.g. {@code _VBA_PROJECT}) found in this fragment's embedded-object stream; empty if none or not applicable. */
+    public List<String> getEmbeddedMacroStorageNames() {
+        return embeddedMacroStorageNames;
     }
 
     /**
@@ -117,6 +135,8 @@ public final class VisibilityAttributes {
         private Boolean onPage;
         private Double positionX;
         private Double positionY;
+        private String embeddedExecutableSignature;
+        private List<String> embeddedMacroStorageNames = List.of();
 
         public Builder fontColor(Color v) {
             this.fontColor = v;
@@ -152,6 +172,16 @@ public final class VisibilityAttributes {
         public Builder position(Double x, Double y) {
             this.positionX = x;
             this.positionY = y;
+            return this;
+        }
+
+        public Builder embeddedExecutableSignature(String v) {
+            this.embeddedExecutableSignature = v;
+            return this;
+        }
+
+        public Builder embeddedMacroStorageNames(List<String> v) {
+            this.embeddedMacroStorageNames = v == null ? List.of() : List.copyOf(v);
             return this;
         }
 

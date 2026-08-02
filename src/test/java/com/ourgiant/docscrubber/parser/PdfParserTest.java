@@ -1,6 +1,7 @@
 package com.ourgiant.docscrubber.parser;
 
 import com.ourgiant.docscrubber.fixtures.FixtureBuilder;
+import com.ourgiant.docscrubber.model.Channel;
 import com.ourgiant.docscrubber.model.ExtractionModel;
 import com.ourgiant.docscrubber.model.RenderMode;
 import com.ourgiant.docscrubber.model.TextFragment;
@@ -107,6 +108,31 @@ class PdfParserTest {
         ExtractionModel model = parser.parse(file);
 
         assertEquals(0, model.getEmbeddedObjectCount());
+    }
+
+    @Test
+    void flagsEmbeddedFileWithExecutableSignature(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded-exe.pdf");
+        FixtureBuilder.pdfWithEmbeddedExecutable(file, "Ordinary visible document body.");
+
+        ExtractionModel model = parser.parse(file);
+
+        List<TextFragment> embeddedObjectFragments = model.getFragments().stream()
+            .filter(f -> f.getChannel() == Channel.EMBEDDED_OBJECT)
+            .toList();
+        assertEquals(1, embeddedObjectFragments.size());
+        assertEquals("MZ / Windows-DOS executable", embeddedObjectFragments.get(0).getVisibility().getEmbeddedExecutableSignature());
+    }
+
+    @Test
+    void ordinaryEmbeddedFileAttachmentIsNotFlaggedAsStructural(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("embedded-plain.pdf");
+        FixtureBuilder.pdfWithEmbeddedFile(file, "Ordinary visible document body.", 1);
+
+        ExtractionModel model = parser.parse(file);
+
+        assertTrue(model.getFragments().stream().noneMatch(f -> f.getChannel() == Channel.EMBEDDED_OBJECT),
+            "A plain-text embedded attachment should not trip the executable/macro-storage structural checks");
     }
 
     private TextFragment findByText(ExtractionModel model, String needle) {

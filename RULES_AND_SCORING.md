@@ -79,7 +79,7 @@ Every rule has a `channels` list — `["*"]` for "every channel", or a subset li
 | `METADATA` | Document properties/custom properties (docx, PDF) |
 | `ALT_TEXT` | Image/object alt-text and title (docx) |
 | `HYPERLINK_TARGET` | The URL a hyperlink run points to, not its visible label (docx) |
-| `EMBEDDED_OBJECT` | Reserved; not currently populated with fragments — see §4's note on embedded-object counting instead |
+| `EMBEDDED_OBJECT` | Synthetic fragments the parser creates only when an embedded object's raw stream trips a structural signal (STRUCT-008A/008B below) — not one fragment per embedded object. Text content inside embedded objects is otherwise not scanned; see §4's note on embedded-object counting |
 
 Channels matter because they're where the STRUCT-006A/006B rules (§3) and the "channel readers
 rarely check" framing throughout the bundled ruleset come from — a payload sitting in alt-text or
@@ -118,7 +118,7 @@ Two things this deliberately does **not** do:
 
 ## 3. The bundled ruleset
 
-`rules.json` ships 33 seed rules: 25 `content` and 8 `structural`. IDs are stable identifiers —
+`rules.json` ships 35 seed rules: 25 `content` and 10 `structural`. IDs are stable identifiers —
 referenced by the GUI, reports, and the `combos` below — not a strict numeric sequence (STRUCT-006
 was split into `006A`/`006B` when its false-positive rate on long-form comments/alt-text needed a
 separate, higher threshold than metadata).
@@ -165,6 +165,8 @@ separate, higher threshold than metadata).
 | STRUCT-006A | `suspiciousChannel` | medium | `metadata` | 40+ chars of prose in document properties |
 | STRUCT-006B | `suspiciousChannel` | low | `comment`, `tracked_change`, `alt_text`, `footnote` | 200+ chars of prose (threshold raised because long prose is routine in these channels) |
 | STRUCT-007 | `overlappedText` | high | `*` | **Disabled by default** — see §6 |
+| STRUCT-008A | `embeddedExecutableSignature` | critical | `embedded_object` | Embedded object's raw stream begins with an MZ (Windows/DOS) or ELF (Linux) executable signature |
+| STRUCT-008B | `embeddedMacroStorage` | high | `embedded_object` | Embedded OLE compound-file object contains a macro-storage entry (`_VBA_PROJECT`, `VBA`, `Macros`) |
 
 ### Combos
 
@@ -325,7 +327,8 @@ A combo:
 
 `structural` rules can only reference a `detector` id that's registered in code —
 `DetectorRegistry`'s constructor is the complete list (`lowContrastText`, `tinyFont`, `hiddenRun`,
-`invisibleRenderMode`, `offPageText`, `suspiciousChannel`, `overlappedText`). Adding a new one means
+`invisibleRenderMode`, `offPageText`, `suspiciousChannel`, `overlappedText`,
+`embeddedExecutableSignature`, `embeddedMacroStorage`). Adding a new one means
 implementing the two-method `Detector` interface:
 
 ```java
@@ -348,3 +351,12 @@ with this project's no-false-positive priority. It ships as a real, documented, 
 (`"enabled": false`) rather than a silently-missing detector id, specifically so referencing it
 never trips the "unknown detector" validation warning and the gap stays visible rather than quietly
 absent.
+
+`STRUCT-008A`/`008B` (`embeddedExecutableSignature`/`embeddedMacroStorage`) follow the same
+"parser populates, detector reads `VisibilityAttributes`" shape as every other structural detector
+— they never touch a fragment's text. `PdfParser`/`DocxParser` hand each embedded object's raw
+bytes to `EmbeddedStreamInspector`, a bounded, best-effort check (magic-byte signature match, plus
+an OLE2 compound-file directory listing capped at 20MB) that never parses further or executes
+anything. It only produces a fragment (`Channel.EMBEDDED_OBJECT`) when it finds something —
+document text inside embedded objects otherwise remains unscanned, per `embeddedObjectCount` and
+the parsers' limitations notices.

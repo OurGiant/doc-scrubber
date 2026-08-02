@@ -8,6 +8,7 @@ import com.ourgiant.docscrubber.model.TextFragment;
 import com.ourgiant.docscrubber.model.VisibilityAttributes;
 import com.ourgiant.docscrubber.util.ColorUtil;
 import org.apache.poi.openxml4j.exceptions.OpenXML4JException;
+import org.apache.poi.openxml4j.opc.PackagePart;
 import org.apache.poi.xwpf.usermodel.XWPFComment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
@@ -29,6 +30,8 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTShd;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.io.IOException;
@@ -54,6 +57,8 @@ import java.util.Locale;
  */
 public final class DocxParser implements DocumentParser {
 
+    private static final Logger logger = LoggerFactory.getLogger(DocxParser.class);
+
     private static final String W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
     @Override
@@ -74,7 +79,9 @@ public final class DocxParser implements DocumentParser {
             extractComments(doc, fragments);
             extractFootnotes(doc, fragments);
             extractProperties(doc, fragments);
-            embeddedObjectCount = countEmbeddedParts(doc);
+            List<PackagePart> embeddedParts = embeddedParts(doc);
+            embeddedObjectCount = embeddedParts.size();
+            inspectEmbeddedParts(embeddedParts, fragments);
         }
 
         List<String> limitations = new ArrayList<>();
@@ -86,12 +93,38 @@ public final class DocxParser implements DocumentParser {
         return new ExtractionModel(path, DocumentFormat.DOCX, fragments, limitations, embeddedObjectCount);
     }
 
-    private int countEmbeddedParts(XWPFDocument doc) throws IOException {
+    private List<PackagePart> embeddedParts(XWPFDocument doc) throws IOException {
         try {
-            return doc.getAllEmbeddedParts().size();
+            return doc.getAllEmbeddedParts();
         } catch (OpenXML4JException e) {
             throw new IOException("Failed to enumerate embedded objects", e);
         }
+    }
+
+    /** Bounded, best-effort structural inspection of each embedded part's raw bytes — see {@link EmbeddedStreamInspector}. A single unreadable embedded part is logged and skipped rather than failing the whole scan. */
+    private void inspectEmbeddedParts(List<PackagePart> embeddedParts, List<TextFragment> out) {
+        for (PackagePart part : embeddedParts) {
+            String name = partDisplayName(part);
+            try (InputStream in = part.getInputStream()) {
+                EmbeddedStreamInspector.Signals signals = EmbeddedStreamInspector.inspect(in);
+                if (!signals.isEmpty()) {
+                    out.add(new TextFragment(EmbeddedStreamInspector.describe(name, signals), Channel.EMBEDDED_OBJECT,
+                        SourceLocation.field("Embedded object: " + name),
+                        VisibilityAttributes.builder()
+                            .embeddedExecutableSignature(signals.executableSignature())
+                            .embeddedMacroStorageNames(signals.macroStorageNames())
+                            .build()));
+                }
+            } catch (IOException e) {
+                logger.warn("Could not read embedded part \"{}\" for structural inspection: {}", name, e.getMessage());
+            }
+        }
+    }
+
+    private String partDisplayName(PackagePart part) {
+        String name = part.getPartName().getName();
+        int lastSlash = name.lastIndexOf('/');
+        return lastSlash >= 0 ? name.substring(lastSlash + 1) : name;
     }
 
     private void extractParagraphs(List<XWPFParagraph> paragraphs, Channel channel, List<TextFragment> out) {

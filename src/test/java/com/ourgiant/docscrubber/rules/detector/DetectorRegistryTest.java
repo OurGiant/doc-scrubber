@@ -13,7 +13,8 @@ class DetectorRegistryTest {
     void knowsAllSeedRulesetDetectorIds() {
         for (String id : new String[] {
             "lowContrastText", "tinyFont", "hiddenRun", "invisibleRenderMode",
-            "offPageText", "suspiciousChannel", "overlappedText"
+            "offPageText", "suspiciousChannel", "overlappedText",
+            "embeddedExecutableSignature", "embeddedMacroStorage"
         }) {
             assertTrue(registry.isKnown(id), "Expected detector registered: " + id);
             assertTrue(registry.lookup(id).isPresent());

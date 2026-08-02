@@ -23,9 +23,11 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.state.RenderingMode;
+import org.apache.poi.poifs.filesystem.POIFSFileSystem;
 
 import java.awt.Color;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -153,6 +155,51 @@ public final class FixtureBuilder {
             }
             save(doc, target);
         }
+    }
+
+    /** Body text plus one embedded part whose raw bytes begin with a Windows/DOS executable (MZ) signature. */
+    public static void docxWithEmbeddedExecutable(Path target, String bodyText) throws IOException, InvalidFormatException {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText(bodyText);
+
+            PackagePart documentPart = doc.getPackagePart();
+            OPCPackage pkg = documentPart.getPackage();
+            PackagePartName partName = PackagingURIHelper.createPartName("/word/embeddings/oleObject1.bin");
+            PackagePart embeddedPart = pkg.createPart(partName, "application/vnd.openxmlformats-officedocument.oleObject");
+            try (OutputStream os = embeddedPart.getOutputStream()) {
+                os.write(new byte[] {'M', 'Z', (byte) 0x90, 0x00, 0x03, 0x00, 0x00, 0x00});
+            }
+            documentPart.addRelationship(partName, TargetMode.INTERNAL,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject", "rIdOle1");
+            save(doc, target);
+        }
+    }
+
+    /** Body text plus one embedded part that's a real OLE2 compound file containing a {@code _VBA_PROJECT} macro-storage entry. */
+    public static void docxWithEmbeddedMacroStorage(Path target, String bodyText) throws IOException, InvalidFormatException {
+        try (XWPFDocument doc = new XWPFDocument()) {
+            doc.createParagraph().createRun().setText(bodyText);
+
+            PackagePart documentPart = doc.getPackagePart();
+            OPCPackage pkg = documentPart.getPackage();
+            PackagePartName partName = PackagingURIHelper.createPartName("/word/embeddings/oleObject1.bin");
+            PackagePart embeddedPart = pkg.createPart(partName, "application/vnd.openxmlformats-officedocument.oleObject");
+            try (OutputStream os = embeddedPart.getOutputStream()) {
+                os.write(ole2CompoundFileWithMacroStorage());
+            }
+            documentPart.addRelationship(partName, TargetMode.INTERNAL,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject", "rIdOle1");
+            save(doc, target);
+        }
+    }
+
+    private static byte[] ole2CompoundFileWithMacroStorage() throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (POIFSFileSystem fs = new POIFSFileSystem()) {
+            fs.getRoot().createDirectory("_VBA_PROJECT");
+            fs.writeFilesystem(bos);
+        }
+        return bos.toByteArray();
     }
 
     // ---------------------------------------------------------------- pdf
@@ -317,6 +364,43 @@ public final class FixtureBuilder {
                 fileSpec.setEmbeddedFile(embeddedFile);
                 embeddedFiles.put("attachment" + i + ".txt", fileSpec);
             }
+
+            PDDocumentCatalog catalog = doc.getDocumentCatalog();
+            PDDocumentNameDictionary namesDictionary = new PDDocumentNameDictionary(catalog);
+            PDEmbeddedFilesNameTreeNode embeddedFilesTree = new PDEmbeddedFilesNameTreeNode();
+            embeddedFilesTree.setNames(embeddedFiles);
+            namesDictionary.setEmbeddedFiles(embeddedFilesTree);
+            catalog.setNames(namesDictionary);
+
+            doc.save(target.toFile());
+        }
+    }
+
+    /** Visible body text plus one embedded file attachment whose raw bytes begin with a Windows/DOS executable (MZ) signature. */
+    public static void pdfWithEmbeddedExecutable(Path target, String bodyText) throws IOException {
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(PDRectangle.LETTER);
+            doc.addPage(page);
+            PDFont font = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                cs.beginText();
+                cs.setFont(font, 12);
+                cs.newLineAtOffset(72, 700);
+                cs.showText(bodyText);
+                cs.endText();
+            }
+
+            byte[] data = {'M', 'Z', (byte) 0x90, 0x00, 0x03, 0x00, 0x00, 0x00};
+            PDEmbeddedFile embeddedFile = new PDEmbeddedFile(doc, new ByteArrayInputStream(data));
+            embeddedFile.setSubtype("application/octet-stream");
+            embeddedFile.setSize(data.length);
+
+            PDComplexFileSpecification fileSpec = new PDComplexFileSpecification();
+            fileSpec.setFile("invoice.exe");
+            fileSpec.setEmbeddedFile(embeddedFile);
+
+            Map<String, PDComplexFileSpecification> embeddedFiles = new HashMap<>();
+            embeddedFiles.put("invoice.exe", fileSpec);
 
             PDDocumentCatalog catalog = doc.getDocumentCatalog();
             PDDocumentNameDictionary namesDictionary = new PDDocumentNameDictionary(catalog);
