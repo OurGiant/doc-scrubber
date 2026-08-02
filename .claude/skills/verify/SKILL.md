@@ -33,24 +33,41 @@ java -jar target/doc-scrubber-all.jar
 
 Main class: `com.ourgiant.docscrubber.Main`.
 
-## Screenshots: assume the sibling projects' dead end applies, but confirm first
+## Screenshots: Robot actually works here — confirmed, don't assume the sibling dead end
 
-`aws-idp-saml-ui` and `kiro-control-panel` both confirmed
-`java.awt.Robot.createScreenCapture(...)` returns solid black on this
-host's Wayland/COSMIC session. This project hasn't independently
-confirmed that yet — same host makes it likely, not certain. Try it once;
-if it's black, stop debugging it and go straight to the generic skill's
-reflection-based fallback (`getText()`/component state, `doClick()`,
-synthetic `MouseEvent.dispatchEvent`) rather than re-exploring the dead
-ends already logged in `kiro-control-panel`'s `verify` skill (cosmic-screenshot
-workspace mismatch, missing xdotool/wmctrl, no D-Bus workspace-switch API,
-no AT-SPI bridge).
+Unlike `aws-idp-saml-ui` and `kiro-control-panel` (where `Robot.createScreenCapture`
+reliably returns solid black on their Wayland/COSMIC sessions), **this
+project's dev host has a real, working X11 display (`:1`)** and
+`Robot.createScreenCapture(...)` returns a genuine, non-black screenshot.
+Confirmed by actually sampling pixel values (average sampled RGB well
+above 0), not just eyeballing the PNG. Try it first here — don't
+preemptively skip to the reflection-based fallback just because sibling
+projects needed it.
+
+## Component.paint() offscreen capture: fast, but can show a stale-clip artifact — cross-check with Robot before trusting it
+
+Rendering a top-level window offscreen via
+`component.paint(graphics2D)` into a `BufferedImage` (no OS screen
+capture involved at all) is a good fast/deterministic alternative to
+`Robot` when you want to inspect a component tree without a display, or
+in a loop. But for a window containing a `JSplitPane` whose divider
+location was requested smaller than a child's minimum size (so Swing
+grows it after the fact), this technique was observed to paint using a
+**stale clip region from an earlier layout pass** — a real button
+(confirmed present and correctly bounded via reflection:
+`component.getBounds()`) was completely absent from the rendered pixels,
+even after an explicit `validate()` and a 1.5s settle. A real `Robot`
+capture of the same live window immediately after showed the button
+rendered correctly. If `component.paint()` output looks wrong in a way
+that contradicts reflected component state, don't trust it — reach for
+`Robot` (now confirmed working here) as the tiebreaker before concluding
+there's an app bug.
 
 ## Nothing else confirmed yet
 
-This project is new — no project-specific gotchas (first-run state
-location, custom dialog sizing quirks, etc.) have been found and
-confirmed here yet. Add them to this file as they turn up, the way
-`kiro-control-panel`'s `verify` skill records its `JEditorPane` sizing
-gotcha and `aws-idp-saml-ui`'s records its bind-mount staleness and
-`-Duser.home` isolation notes.
+No other project-specific gotchas (first-run state location, custom
+dialog sizing quirks, etc.) have been found and confirmed here yet. Add
+them to this file as they turn up, the way `kiro-control-panel`'s
+`verify` skill records its `JEditorPane` sizing gotcha and
+`aws-idp-saml-ui`'s records its bind-mount staleness and `-Duser.home`
+isolation notes.

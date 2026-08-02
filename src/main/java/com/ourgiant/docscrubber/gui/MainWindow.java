@@ -80,6 +80,7 @@ public final class MainWindow extends JFrame {
         statusBar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
 
         setLayout(new BorderLayout());
+        add(buildCautionBanner(), BorderLayout.NORTH);
         add(split, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
@@ -92,6 +93,20 @@ public final class MainWindow extends JFrame {
         if (iconUrl != null) {
             setIconImage(new ImageIcon(iconUrl).getImage());
         }
+    }
+
+    /** Fixed amber/black regardless of the active FlatLaf theme (light or dark) — the point is to stand out from the surrounding chrome, not blend into it the way a themed component would. */
+    private JComponent buildCautionBanner() {
+        JLabel banner = new JLabel("<html><div style='text-align:center;'><b>Caution:</b> Not every document is "
+            + "malicious, but treat files provided for AI use the same as an email attachment &#8212; verify the "
+            + "source, avoid unsolicited documents, and apply least-privilege, zero-trust judgment before scanning "
+            + "or sharing them.</div></html>");
+        banner.setHorizontalAlignment(SwingConstants.CENTER);
+        banner.setOpaque(true);
+        banner.setBackground(new Color(0xFF, 0xC1, 0x07));
+        banner.setForeground(new Color(0x33, 0x22, 0x00));
+        banner.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
+        return banner;
     }
 
     private JMenuBar buildMenuBar() {
