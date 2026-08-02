@@ -65,7 +65,9 @@ com.ourgiant.docscrubber
 
 1.0.0 shipped parsers, the rules engine, scoring, a seed ruleset, fixtures/tests, a functional scan/results/export GUI, and an in-app rules explorer/editor (Rules menu) with save-time and ad hoc validation.
 
-1.1.0 adds JSON/YAML/XML parsing, evasion-resistant content-rule matching (Unicode normalization plus zero-width/comment stripping), density-aware scoring (repeated-hit capping), embedded-object/attachment reporting, a hardened ReDoS timeout and max-file-size limit, and [RULES_AND_SCORING.md](RULES_AND_SCORING.md) documenting the rules engine and scoring in full. Batch-mode UI polish is planned for a later release.
+1.1.0 adds JSON/YAML/XML parsing, evasion-resistant content-rule matching (Unicode normalization plus zero-width/comment stripping), density-aware scoring (repeated-hit capping), embedded-object/attachment reporting, a hardened ReDoS timeout and max-file-size limit, and [RULES_AND_SCORING.md](RULES_AND_SCORING.md) documenting the rules engine and scoring in full.
+
+1.2.0 adds structural detectors for executable/macro signatures inside embedded objects (bounded, best-effort — never parses or executes stream content), folder support for the file queue (drag-and-drop or Add Files/Folder... now accept a directory, walked recursively, only registered file types added), a Remove All button for the file queue, and a persistent caution banner reminding users to treat documents headed to an AI tool with the same source-verification and least-privilege/zero-trust judgment as an email attachment. Batch-mode UI polish is still planned for a later release.
 
 ## Scope
 
