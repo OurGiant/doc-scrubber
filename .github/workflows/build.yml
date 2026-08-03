@@ -110,7 +110,11 @@ jobs:
             --app-version ${{ steps.version.outputs.version }} \
             --vendor OurGiant \
             --type deb \
-            --icon src/main/resources/app-icon.png \
+            --icon src/packaging/linux/app-icon.png \
+            --description "Desktop scanner that detects and reports prompt-injection \"poison pills\" hidden in PDF, Word, and text documents before they reach an AI tool" \
+            --linux-menu-group "Utility;" \
+            --linux-shortcut \
+            --resource-dir src/packaging/linux \
             --dest installer-output
 
       - name: Upload Linux artifacts
