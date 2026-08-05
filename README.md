@@ -67,7 +67,9 @@ com.ourgiant.docscrubber
 
 1.1.0 adds JSON/YAML/XML parsing, evasion-resistant content-rule matching (Unicode normalization plus zero-width/comment stripping), density-aware scoring (repeated-hit capping), embedded-object/attachment reporting, a hardened ReDoS timeout and max-file-size limit, and [RULES_AND_SCORING.md](RULES_AND_SCORING.md) documenting the rules engine and scoring in full.
 
-1.2.0 adds structural detectors for executable/macro signatures inside embedded objects (bounded, best-effort — never parses or executes stream content), folder support for the file queue (drag-and-drop or Add Files/Folder... now accept a directory, walked recursively, only registered file types added), a Remove All button for the file queue, and a persistent caution banner reminding users to treat documents headed to an AI tool with the same source-verification and least-privilege/zero-trust judgment as an email attachment. Batch-mode UI polish is still planned for a later release.
+1.2.0 adds structural detectors for executable/macro signatures inside embedded objects (bounded, best-effort — never parses or executes stream content), folder support for the file queue (drag-and-drop or Add Files/Folder... now accept a directory, walked recursively, only registered file types added), a Remove All button for the file queue, and a persistent caution banner reminding users to treat documents headed to an AI tool with the same source-verification and least-privilege/zero-trust judgment as an email attachment.
+
+1.3.0 adds system tray support so the app can stay dormant instead of exiting when its window is closed (View > Minimize to Tray, on by default when the platform supports it, with a tray menu to reopen or exit), and a directory watch feature (Tools > Watch Folders...) that auto-scans new files dropped into registered folders and reports the verdict and score as a severity-styled tray notification. Batch-mode UI polish is still planned for a later release.
 
 ## Scope
 
