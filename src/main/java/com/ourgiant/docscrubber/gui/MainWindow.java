@@ -55,13 +55,14 @@ public final class MainWindow extends JFrame {
     private volatile Path selectedFile;
 
     private RulesWindow rulesWindow;
+    private final TraySupport traySupport = new TraySupport(this);
 
     public MainWindow() {
         setTitle("DocScrubber");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1150, 720);
         setLocationRelativeTo(null);
         setAppIcon();
+        setupCloseBehavior();
 
         setJMenuBar(buildMenuBar());
 
@@ -95,6 +96,35 @@ public final class MainWindow extends JFrame {
         }
     }
 
+    /**
+     * Closing the window hides it to the tray (leaving the app running dormant) when the tray is
+     * available and the user hasn't opted out; otherwise falls back to the pre-tray behavior of
+     * exiting outright, since there'd be no way to get the window back.
+     */
+    private void setupCloseBehavior() {
+        if (TraySupport.isSupported()) {
+            traySupport.install();
+        }
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                if (traySupport.isInstalled() && preferences.isMinimizeToTrayEnabled()) {
+                    setVisible(false);
+                } else {
+                    exitApp();
+                }
+            }
+        });
+    }
+
+    /** The one true exit path — used by the tray menu's Exit item and the File menu's Exit item alike. */
+    void exitApp() {
+        traySupport.uninstall();
+        dispose();
+        System.exit(0);
+    }
+
     /** Fixed amber/black regardless of the active FlatLaf theme (light or dark) — the point is to stand out from the surrounding chrome, not blend into it the way a themed component would. */
     private JComponent buildCautionBanner() {
         JLabel banner = new JLabel("<html><div style='text-align:center;'><b>Caution:</b> Not every document is "
@@ -118,7 +148,7 @@ public final class MainWindow extends JFrame {
         JMenuItem exportReport = new JMenuItem("Export Report...");
         exportReport.addActionListener(e -> exportReport());
         JMenuItem exit = new JMenuItem("Exit");
-        exit.addActionListener(e -> dispose());
+        exit.addActionListener(e -> exitApp());
         fileMenu.add(addFiles);
         fileMenu.add(exportReport);
         fileMenu.addSeparator();
@@ -151,6 +181,12 @@ public final class MainWindow extends JFrame {
             themeMenu.add(item);
         }
         viewMenu.add(themeMenu);
+        if (TraySupport.isSupported()) {
+            JCheckBoxMenuItem minimizeToTray = new JCheckBoxMenuItem("Minimize to Tray", preferences.isMinimizeToTrayEnabled());
+            minimizeToTray.addActionListener(e -> preferences.setMinimizeToTrayEnabled(minimizeToTray.isSelected()));
+            viewMenu.addSeparator();
+            viewMenu.add(minimizeToTray);
+        }
 
         JMenu helpMenu = new JMenu("Help");
         JMenuItem viewLogs = new JMenuItem("View Logs...");
