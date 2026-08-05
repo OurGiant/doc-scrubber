@@ -85,6 +85,13 @@ final class ScanQueuePanel extends JPanel {
         list.repaint();
     }
 
+    /** Silently adds a file detected by the directory watcher; unlike {@link #chooseFiles()} there's no dialog to warn against, so unsupported types are just ignored. */
+    void addWatchedFile(Path path) {
+        if (parserRegistry.isSupported(path)) {
+            addSupportedFile(path);
+        }
+    }
+
     void chooseFiles() {
         JFileChooser chooser = new JFileChooser();
         chooser.setMultiSelectionEnabled(true);
