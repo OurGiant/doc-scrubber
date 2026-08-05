@@ -14,8 +14,10 @@ import com.ourgiant.docscrubber.rules.RulesValidator;
 import com.ourgiant.docscrubber.rules.ValidationResult;
 import com.ourgiant.docscrubber.rules.detector.DetectorRegistry;
 import com.ourgiant.docscrubber.score.Scorer;
+import com.ourgiant.docscrubber.score.Verdict;
 import com.ourgiant.docscrubber.util.AppVersion;
 import com.ourgiant.docscrubber.util.UpdateChecker;
+import com.ourgiant.docscrubber.watch.DirectoryWatchService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,8 +29,10 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class MainWindow extends JFrame {
@@ -55,7 +59,12 @@ public final class MainWindow extends JFrame {
     private volatile Path selectedFile;
 
     private RulesWindow rulesWindow;
+    private WatchFoldersDialog watchFoldersDialog;
     private final TraySupport traySupport = new TraySupport(this);
+    private DirectoryWatchService watchService;
+
+    /** Files added to the queue by the directory watcher, pending the tray notification their scan result triggers once {@link #scanAsync} finishes — files added manually don't get a notification. */
+    private final Set<Path> watchNotifyPending = ConcurrentHashMap.newKeySet();
 
     public MainWindow() {
         setTitle("DocScrubber");
@@ -70,6 +79,8 @@ public final class MainWindow extends JFrame {
         queuePanel.setOnSelectionChanged(this::onSelectionChanged);
         queuePanel.setStatusResolver(this::statusFor);
         resultsPanel.setRulesSummaryResolver(this::rulesSummaryText);
+
+        initWatchService();
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, queuePanel, resultsPanel);
         split.setDividerLocation(320);
@@ -120,9 +131,77 @@ public final class MainWindow extends JFrame {
 
     /** The one true exit path — used by the tray menu's Exit item and the File menu's Exit item alike. */
     void exitApp() {
+        if (watchService != null) {
+            watchService.shutdown();
+        }
         traySupport.uninstall();
         dispose();
         System.exit(0);
+    }
+
+    /** Starts the directory watcher (if it isn't already) and applies the saved watch-list. A failure here (e.g. the platform can't create a WatchService) just leaves the feature unavailable — not fatal to the rest of the app. */
+    private void initWatchService() {
+        try {
+            watchService = new DirectoryWatchService(this::onWatchedFileDetected);
+            applyWatchedDirectories(preferences.getWatchedDirectories());
+        } catch (IOException e) {
+            logger.warn("Directory watch feature unavailable", e);
+        }
+    }
+
+    private void applyWatchedDirectories(List<String> directories) {
+        if (watchService == null) {
+            return;
+        }
+        watchService.setWatchedDirectories(directories.stream().map(Path::of).toList());
+    }
+
+    private void onWatchedDirectoriesChanged(List<String> directories) {
+        preferences.setWatchedDirectories(directories);
+        applyWatchedDirectories(directories);
+    }
+
+    /** Called from the watch service's own background thread — hop to the EDT before touching any Swing state. */
+    private void onWatchedFileDetected(Path file) {
+        if (!parserRegistry.isSupported(file)) {
+            return;
+        }
+        SwingUtilities.invokeLater(() -> {
+            watchNotifyPending.add(file);
+            queuePanel.addWatchedFile(file);
+        });
+    }
+
+    private void showWatchFoldersDialog() {
+        if (watchFoldersDialog == null) {
+            watchFoldersDialog = new WatchFoldersDialog(this, preferences.getWatchedDirectories(), this::onWatchedDirectoriesChanged);
+        }
+        watchFoldersDialog.setVisible(true);
+        watchFoldersDialog.toFront();
+    }
+
+    /** Verdict severity maps to the closest native tray notification style AWT offers — there's no per-notification custom coloring available without a third-party notification library. */
+    private static TrayIcon.MessageType trayMessageTypeFor(Verdict verdict) {
+        return switch (verdict) {
+            case CLEAN, LOW_RISK -> TrayIcon.MessageType.INFO;
+            case SUSPICIOUS -> TrayIcon.MessageType.WARNING;
+            case LIKELY_COMPROMISED -> TrayIcon.MessageType.ERROR;
+        };
+    }
+
+    private void notifyWatchResult(Path file) {
+        String caption = "DocScrubber: " + file.getFileName();
+        ScanResult result = results.get(file);
+        if (result != null) {
+            Verdict verdict = result.report().getVerdict();
+            String text = verdict.display() + " (" + result.report().getScore() + ")";
+            traySupport.showNotification(caption, text, trayMessageTypeFor(verdict));
+            return;
+        }
+        String error = errors.get(file);
+        if (error != null) {
+            traySupport.showNotification(caption, "Scan failed: " + error, TrayIcon.MessageType.ERROR);
+        }
     }
 
     /** Fixed amber/black regardless of the active FlatLaf theme (light or dark) — the point is to stand out from the surrounding chrome, not blend into it the way a themed component would. */
@@ -173,6 +252,11 @@ public final class MainWindow extends JFrame {
         rulesMenu.addSeparator();
         rulesMenu.add(validateRules);
 
+        JMenu toolsMenu = new JMenu("Tools");
+        JMenuItem watchFolders = new JMenuItem("Watch Folders...");
+        watchFolders.addActionListener(e -> showWatchFoldersDialog());
+        toolsMenu.add(watchFolders);
+
         JMenu viewMenu = new JMenu("View");
         JMenu themeMenu = new JMenu("Theme");
         for (String themeName : ThemeManager.getAvailableThemeNames()) {
@@ -199,6 +283,7 @@ public final class MainWindow extends JFrame {
 
         menuBar.add(fileMenu);
         menuBar.add(rulesMenu);
+        menuBar.add(toolsMenu);
         menuBar.add(viewMenu);
         menuBar.add(helpMenu);
         return menuBar;
@@ -360,6 +445,9 @@ public final class MainWindow extends JFrame {
                 queuePanel.refreshStatus();
                 if (file.equals(selectedFile)) {
                     onSelectionChanged(file);
+                }
+                if (watchNotifyPending.remove(file)) {
+                    notifyWatchResult(file);
                 }
             }
         }.execute();
