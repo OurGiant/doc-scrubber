@@ -6,6 +6,7 @@ import java.util.prefs.Preferences;
 public class AppPreferences {
 
     private static final String KEY_LAST_NOTIFIED_UPDATE_VERSION = "lastNotifiedUpdateVersion";
+    private static final String KEY_MINIMIZE_TO_TRAY = "minimizeToTrayEnabled";
 
     private final Preferences prefs;
 
@@ -24,5 +25,14 @@ public class AppPreferences {
 
     public void setLastNotifiedUpdateVersion(String version) {
         prefs.put(KEY_LAST_NOTIFIED_UPDATE_VERSION, version);
+    }
+
+    /** Whether closing the main window hides it to the system tray instead of exiting. Defaults on when the platform tray is available. */
+    public boolean isMinimizeToTrayEnabled() {
+        return prefs.getBoolean(KEY_MINIMIZE_TO_TRAY, true);
+    }
+
+    public void setMinimizeToTrayEnabled(boolean enabled) {
+        prefs.putBoolean(KEY_MINIMIZE_TO_TRAY, enabled);
     }
 }
