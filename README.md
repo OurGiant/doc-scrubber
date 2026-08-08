@@ -6,7 +6,7 @@
 [![Java 24](https://img.shields.io/badge/Java-24-orange?logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-blue)](#building-and-running)
 
-A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, Markdown, JSON, YAML, XML) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
+A Java Swing desktop application that scans documents (PDF, Word/docx, plain text, Markdown, JSON, YAML, XML, and source formats like TypeScript, JavaScript, Python, HTML, and CSV) for **prompt-injection "poison pills"** — hidden or embedded instructions intended to hijack GenAI tools that later process the document.
 
 DocScrubber is a defensive pre-flight scanner: it scores a document's risk and shows exactly what was found and where, so a human can decide what happens next. It never executes, renders, fetches, or follows anything found inside a scanned document — and it never produces a modified or "cleaned" copy of one either (see [Scope](#scope) below).
 
@@ -16,7 +16,7 @@ Real-world prompt-injection payloads hide behind formatting a human reader never
 
 ## Features
 
-- **Multi-format parsing**: plain text, Markdown, docx (via Apache POI), PDF (via Apache PDFBox), JSON, YAML, and XML (string values, and — for YAML/XML — comments, since both have a comment syntax a downstream parser never sees)
+- **Multi-format parsing**: plain text, Markdown, docx (via Apache POI), PDF (via Apache PDFBox), JSON, YAML, XML (string values, and — for YAML/XML — comments, since both have a comment syntax a downstream parser never sees), and source/code text formats (TypeScript, TSX, JavaScript, JSX, Python, HTML, CSV) treated as plain text
 - **Two-layer rules engine**: content rules (regex, keyword lists, Unicode character classes) and structural detectors (low-contrast text, tiny fonts, hidden runs, invisible PDF render modes, off-page text, suspicious channels, executable/macro signatures in embedded objects), evaluated together with score-multiplying combos when both fire on the same fragment
 - **Evasion-resistant matching**: content rules run against a normalized "shadow" copy of each fragment (NFKC Unicode normalization, plus zero-width/bidi/tags-block characters and HTML/XML comments stripped) — so disguised phrases like fullwidth-Unicode or zero-width-interleaved letters are still caught. The unmodified original text is always what's shown in findings evidence and what structural/Unicode-presence rules evaluate, so the disguise itself stays visible to a human reviewer
 - **Declarative `rules.json`**: rule changes never require a code change; the bundled ruleset ships with 35 seed rules covering common injection patterns, and the file is schema-validated on load with a clear GUI error on failure

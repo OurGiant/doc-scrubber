@@ -14,20 +14,25 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
- * Parses .txt/.md as a flat sequence of blank-line-delimited paragraphs. There is no hidden-text
- * concept in plain text, so every fragment gets the same neutral {@link VisibilityAttributes}
- * (structural detectors will simply never fire on these documents).
+ * Parses .txt/.md and common source/data text formats (ts, tsx, js, jsx, py, html, htm, csv) as a
+ * flat sequence of blank-line-delimited paragraphs. There is no hidden-text concept in plain text,
+ * so every fragment gets the same neutral {@link VisibilityAttributes} (structural detectors will
+ * simply never fire on these documents).
  */
 public final class PlainTextParser implements DocumentParser {
 
     private static final VisibilityAttributes VISIBLE = VisibilityAttributes.builder().build();
 
+    private static final Set<String> PLAIN_TEXT_EXTENSIONS = Set.of(
+        "txt", "ts", "tsx", "js", "jsx", "py", "html", "htm", "csv");
+
     @Override
     public boolean supports(Path path) {
         String ext = extension(path);
-        return ext.equals("txt") || ext.equals("md") || ext.equals("markdown");
+        return PLAIN_TEXT_EXTENSIONS.contains(ext) || ext.equals("md") || ext.equals("markdown");
     }
 
     @Override

@@ -49,4 +49,28 @@ class PlainTextParserTest {
         assertFalse(parser.supports(Path.of("a.docx")));
         assertFalse(parser.supports(Path.of("a.pdf")));
     }
+
+    @Test
+    void supportsSourceAndDataTextFormats() {
+        assertTrue(parser.supports(Path.of("a.ts")));
+        assertTrue(parser.supports(Path.of("a.tsx")));
+        assertTrue(parser.supports(Path.of("a.js")));
+        assertTrue(parser.supports(Path.of("a.jsx")));
+        assertTrue(parser.supports(Path.of("a.py")));
+        assertTrue(parser.supports(Path.of("a.html")));
+        assertTrue(parser.supports(Path.of("a.htm")));
+        assertTrue(parser.supports(Path.of("a.csv")));
+    }
+
+    @Test
+    void treatsSourceAndDataTextFormatsAsPlainText(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("sample.py");
+        Files.writeString(file, "def greet():\n    print('hi')\n");
+
+        ExtractionModel model = parser.parse(file);
+
+        assertEquals(DocumentFormat.PLAIN_TEXT, model.getFormat());
+        assertEquals(1, model.getFragments().size());
+        assertTrue(model.getFragments().get(0).getText().contains("def greet():"));
+    }
 }
